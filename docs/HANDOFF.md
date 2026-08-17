@@ -41,9 +41,10 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
 
 ## Next actions
 
-1. **P3 full SFT**: wire `--data` JSONL (still dummy records today), then
+1. **P3 full SFT**: `--data` now parses Task / builder / TRL JSONL
+   (`sft_records_from_bytes`). Next GPU spend:
    `modal run cloud/modal_train.py --epochs 2 --data forge/data/train.jsonl`.
-   Do not mix RLVR into SFT.
+   Still text-only (no PNG in the chat). Do not mix RLVR into SFT.
 2. Wire a real provider adapter into `benchmark_eval._predict_one` (local
    vLLM/MLX or frontier API) for head-to-head.
 

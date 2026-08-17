@@ -1,5 +1,9 @@
 """Smoke-train settings, unit-testable without Modal."""
 
+from __future__ import annotations
+
+import json
+
 SMOKE_MAX_STEPS = 4
 
 
@@ -42,3 +46,43 @@ def dummy_sft_records() -> list[dict]:
             ],
         }
     ]
+
+
+USER_PROMPT = (
+    "Review this food label for FDA compliance. Emit the verdict JSON."
+)
+
+
+def _chat(user: str, assistant: str) -> dict:
+    return {
+        "messages": [
+            {"role": "user", "content": user},
+            {"role": "assistant", "content": assistant},
+        ]
+    }
+
+
+def sft_records_from_bytes(data: bytes) -> list[dict]:
+    """Parse Modal --data payload: empty, TRL messages, builder shards, or Task JSONL."""
+    lines = [ln for ln in data.decode("utf-8").splitlines() if ln.strip()] if data else []
+    if not lines:
+        return dummy_sft_records()
+    records = []
+    for ln in lines:
+        obj = json.loads(ln)
+        if "messages" in obj:
+            records.append({"messages": obj["messages"]})
+            continue
+        if "assistant_json" in obj:
+            records.append(_chat(obj.get("user_text") or USER_PROMPT, obj["assistant_json"]))
+            continue
+        if "expected" in obj:
+            expected = obj["expected"]
+            assistant = (
+                expected if isinstance(expected, str)
+                else json.dumps(expected, separators=(",", ":"))
+            )
+            records.append(_chat(USER_PROMPT, assistant))
+            continue
+        raise ValueError(f"unrecognized SFT record keys: {sorted(obj)}")
+    return records

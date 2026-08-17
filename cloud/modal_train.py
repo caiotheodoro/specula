@@ -21,7 +21,7 @@ _MODEL_SRC = Path(__file__).resolve().parent.parent / "model" / "src"
 if str(_MODEL_SRC) not in sys.path:
     sys.path.insert(0, str(_MODEL_SRC))
 
-from specula_model.train_config import dummy_sft_records, trainer_kwargs
+from specula_model.train_config import sft_records_from_bytes, trainer_kwargs
 
 app = modal.App("specula-train")
 vol = modal.Volume.from_name("specula-checkpoints", create_if_missing=True)
@@ -44,10 +44,9 @@ def train(data: bytes, smoke: bool = False, epochs: int = 2) -> str:
     from trl import SFTTrainer, SFTConfig
 
     kw = trainer_kwargs(smoke=smoke, epochs=epochs)
-    # Wave 0a: dummy records only; JSONL parse of `data` is a later slice.
-    records = dummy_sft_records()
-    if smoke:
-        records = records * 16
+    records = sft_records_from_bytes(data)
+    if smoke and len(records) < 16:
+        records = (records * 16)[:16]
     bnb = BitsAndBytesConfig(
         load_in_4bit=kw["load_in_4bit"],
         bnb_4bit_quant_type="nf4",
