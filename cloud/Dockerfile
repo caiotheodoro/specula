@@ -9,8 +9,8 @@ WORKDIR /workspace
 RUN pip install --no-cache-dir \
     "torch>=2.6" "transformers>=4.55" "peft>=0.13" "trl>=0.16" \
     "accelerate>=1.0" "datasets>=3.0" "pillow>=11" "huggingface_hub>=0.26" \
-    "bitsandbytes>=0.44" "flash-attn" "unsloth>=2025.11" "vllm"
+    "bitsandbytes>=0.44"
 
 COPY . .
 
-CMD ["python", "-m", "specula_model.train"]
+CMD ["python3", "-c", "print('specula-train-image-ok')"]

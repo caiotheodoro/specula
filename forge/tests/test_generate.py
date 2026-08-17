@@ -67,3 +67,61 @@ def test_gate_holds_on_pilot():
     for _ in range(60):
         t = generate.task(rng, "yogurt", seed=7, n_violations=2)
         assert oracle_gate(t.label, {v.type for v in t.expected.violations})
+
+
+def test_all_taxonomy_types_in_injection_pool():
+    assert {ViolationType(x) for x in generate.ALL} == set(ViolationType)
+
+
+def test_allergen_statement_injectable_and_gated():
+    rng = random.Random(44)
+    label = generate.generate_label(rng, "yogurt", [ViolationType.ALLERGEN_STATEMENT])
+    assert oracle_gate(label, {ViolationType.ALLERGEN_STATEMENT})
+
+
+def test_allergen_and_allergen_statement_never_combined():
+    rng = random.Random(21)
+    n_two = 0
+    banned = {ViolationType.ALLERGEN, ViolationType.ALLERGEN_STATEMENT}
+    for _ in range(80):
+        t = generate.task(rng, "yogurt", seed=7, n_violations=2)
+        types = {v.type for v in t.expected.violations}
+        assert not banned <= types
+        if len(types) == 2:
+            n_two += 1
+    assert n_two >= 60
+
+
+def test_panel_lines_include_health_claim():
+    rng = random.Random(31)
+    label = generate.generate_label(rng, "yogurt", [ViolationType.HEALTH_CLAIM])
+    assert label.printed_health_claims
+    lines = generate._panel_lines(label)
+    for claim in label.printed_health_claims:
+        assert any(claim in line for line in lines)
+
+
+def test_formatting_omits_gram_measure_from_serving_line():
+    rng = random.Random(32)
+    label = generate.generate_label(rng, "bread", [ViolationType.FORMATTING])
+    serving = next(line for line in generate._panel_lines(label)
+                   if line.startswith("Serving Size"))
+    assert f"({label.printed.serving_size_grams:g}g)" not in serving
+    assert label.printed.serving_size_household in serving
+
+
+def test_legibility_render_differs_from_clean():
+    rng = random.Random(33)
+    dirty = generate.generate_label(rng, "cookies", [ViolationType.LEGIBILITY])
+    clean = dirty.model_copy(deep=True)
+    clean.printed.legibility_flags = []
+    assert generate.render_png(clean) != generate.render_png(dirty)
+
+
+def test_forced_injection_gate_holds_across_categories():
+    rng = random.Random(99)
+    for cat in ("bread", "yogurt", "soup_ready_to_serve"):
+        for name in generate.ALL:
+            vt = ViolationType(name)
+            label = generate.generate_label(rng, cat, [vt])
+            assert oracle_gate(label, {vt}), f"{vt} failed gate on {cat}"

@@ -20,13 +20,24 @@ def score_predictions(expected: Verdict, predicted: Verdict) -> dict[str, float]
     """Score one task: returns caught-weight, total-weight, fp count, parsed."""
     parsed = predicted is not None
     if not parsed:
-        return {"caught": 0.0, "total": 0.0, "fp": 0.0, "parsed": 0.0}
+        return {"caught": 0.0, "total": 0.0, "fp": 0.0, "parsed": 0.0,
+                "citation_hits": 0.0, "citation_total": 0.0}
     exp_keys = violation_keys(expected)
     pred_keys = violation_keys(predicted)
     total = sum(severity_weight(s) for _, s in exp_keys)
     caught = sum(severity_weight(s) for t, s in exp_keys if (t, s) in pred_keys)
     fp = sum(1 for t, s in pred_keys if (t, s) not in exp_keys)
-    return {"caught": caught, "total": total, "fp": fp, "parsed": 1.0}
+    exp_cfr = {(v.type, v.severity): v.cfr for v in expected.violations}
+    pred_cfr = {(v.type, v.severity): v.cfr for v in predicted.violations}
+    citation_total = 0.0
+    citation_hits = 0.0
+    for key in exp_keys:
+        if key in pred_keys:
+            citation_total += 1.0
+            if exp_cfr.get(key) == pred_cfr.get(key):
+                citation_hits += 1.0
+    return {"caught": caught, "total": total, "fp": fp, "parsed": 1.0,
+            "citation_hits": citation_hits, "citation_total": citation_total}
 
 
 def summarize(results: list[dict[str, float]]) -> dict[str, float]:
@@ -39,12 +50,15 @@ def summarize(results: list[dict[str, float]]) -> dict[str, float]:
     caught_w = sum(r["caught"] for r in results)
     fp = sum(r["fp"] for r in results)
     n_violation_tasks = sum(1 for r in results if r["total"] > 0)
+    cit_hits = sum(r["citation_hits"] for r in results)
+    cit_total = sum(r["citation_total"] for r in results)
     return {
         "n_tasks": float(n),
         "parse_rate": parsed,
         "severity_weighted_recall": caught_w / total_w if total_w else 1.0,
         "n_violation_tasks": float(n_violation_tasks),
         "false_positives_per_task": fp / n,
+        "citation_exact_match": cit_hits / cit_total if cit_total else 1.0,
     }
 
 

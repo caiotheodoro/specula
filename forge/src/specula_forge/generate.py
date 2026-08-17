@@ -41,7 +41,7 @@ ALLERGEN_TOKENS: dict[str, str] = {
     "fish": "tuna",
     "crustacean": "shrimp",
     "tree_nuts": "almonds",
-    "peanuts": "peanut butter",
+    "peanuts": "peanuts",
     "wheat": "whole wheat flour",
     "soybeans": "soy lecithin",
     "sesame": "sesame seeds",
@@ -85,9 +85,10 @@ NUTRIENT_TEMPLATE: dict[str, dict[str, float]] = {
                   fiber=2, sugar=4, added=2, protein=13, vitd=1.0, ca=200, fe=2, k=220),
 }
 
-ALL = ["ALLERGEN", "SERVING_SIZE", "CLAIM_THRESHOLD", "HEALTH_CLAIM",
+ALL = ["ALLERGEN_STATEMENT", "SERVING_SIZE", "CLAIM_THRESHOLD", "HEALTH_CLAIM",
        "MISSING_NUTRIENT", "DV_ERROR", "DV_ROUNDING", "HEALTHY_RULE",
-       "FOP_RULE", "IDENTITY", "NET_QUANTITY"]
+       "FOP_RULE", "IDENTITY", "NET_QUANTITY", "FORMATTING",
+       "LEGIBILITY", "ALLERGEN"]
 
 
 def _pick_facts(rng: random.Random, category: str) -> ProductFacts:
@@ -164,7 +165,37 @@ def _pick_allergens(rng: random.Random, facts: ProductFacts, n: int) -> None:
         if group not in present:
             facts.ingredients.append(ALLERGEN_TOKENS[group])
             present.add(group)
-    facts.allergens_present = sorted(present)
+    facts.allergens_present = sorted(_ingredient_groups(facts.ingredients))
+
+
+def _contains_word(group: str) -> str:
+    """Oracle matches Contains via TOP9 tokens, not group keys (tree_nuts)."""
+    return TOP9_GROUPS[group][0]
+
+
+def _sample_injections(rng: random.Random, n: int) -> list[ViolationType]:
+    """Distinct types; never ALLERGEN + ALLERGEN_STATEMENT together."""
+    chosen: list[ViolationType] = []
+    taken: set[ViolationType] = set()
+    for _ in range(n):
+        pool = []
+        for name in ALL:
+            vt = ViolationType(name)
+            if vt in taken:
+                continue
+            if vt is ViolationType.ALLERGEN and \
+                    ViolationType.ALLERGEN_STATEMENT in taken:
+                continue
+            if vt is ViolationType.ALLERGEN_STATEMENT and \
+                    ViolationType.ALLERGEN in taken:
+                continue
+            pool.append(vt)
+        if not pool:
+            break
+        pick = rng.choice(pool)
+        chosen.append(pick)
+        taken.add(pick)
+    return chosen
 
 
 def _failing_claims(facts: ProductFacts) -> list[str]:
@@ -198,7 +229,7 @@ def _realize(facts: ProductFacts, injections: list[ViolationType],
              difficulty: float, rng: random.Random) -> Label:
     nf = _copy_nf(facts.nutrients)
     ing = facts.ingredients[:]
-    contains = list(facts.allergens_present)
+    contains = [_contains_word(g) for g in facts.allergens_present]
     claims: list[str] = []
     health: list[str] = []
     healthy = False
@@ -216,7 +247,7 @@ def _realize(facts: ProductFacts, injections: list[ViolationType],
 
     if ViolationType.ALLERGEN_STATEMENT in injected and facts.allergens_present:
         drop = facts.allergens_present[0]
-        contains = [c for c in contains if c != drop]
+        contains = [_contains_word(g) for g in facts.allergens_present if g != drop]
     if ViolationType.SERVING_SIZE in injected:
         offset = rng.choice(["1/2 cup", "1 tbsp", "2 cups"])
         nf.serving_size_household = offset
@@ -286,8 +317,7 @@ def task(rng: random.Random, category: str, seed: int,
     for _ in range(max_tries):
         inj: list[ViolationType] = []
         if n_violations > 0:
-            pool = list(ALL)
-            inj = [ViolationType(rng.choice(pool)) for _ in range(n_violations)]
+            inj = _sample_injections(rng, n_violations)
         label = generate_label(rng, category, inj, difficulty)
         from .verify import oracle_gate
         if oracle_gate(label, set(inj)):
@@ -326,67 +356,80 @@ def signature(label: Label) -> str:
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
+_NUTRIENT_LINES = (
+    ("total_fat", "Total Fat"), ("sat_fat", "Saturated Fat"),
+    ("cholesterol", "Cholesterol (mg)"), ("sodium", "Sodium (mg)"),
+    ("total_carb", "Total Carbohydrate"), ("fiber", "Dietary Fiber"),
+    ("total_sugars", "Total Sugars"), ("added_sugars", "Added Sugars"),
+    ("protein", "Protein"), ("vit_d", "Vitamin D (mcg)"),
+    ("calcium", "Calcium (mg)"), ("iron", "Iron (mg)"),
+    ("potassium", "Potassium (mg)"),
+)
+
+
+def _panel_lines(label: Label) -> list[str]:
+    """Plain-text panel lines (same content render_png draws)."""
+    nf = label.printed
+    lines: list[str] = [label.product_name or "PRODUCT"]
+    if label.statement_of_identity:
+        lines.append(label.statement_of_identity)
+    if label.net_quantity:
+        lines.append(label.net_quantity)
+    if label.printed_healthy_flag:
+        lines.append("HEALTHY")
+    if label.printed_fop_symbol:
+        lines.append("[FOP SYMBOL]")
+    for c in label.printed_claims:
+        lines.append(c.upper())
+    for hc in label.printed_health_claims:
+        lines.append(hc)
+    lines.append("Nutrition Facts")
+    if "missing_gram_measure" in nf.formatting_flags:
+        lines.append(f"Serving Size {nf.serving_size_household}")
+    else:
+        lines.append(
+            f"Serving Size {nf.serving_size_household} ({nf.serving_size_grams:g}g)")
+    lines.append(f"Servings {nf.servings_per_container:g}")
+    lines.append(f"Calories {nf.calories:g}")
+    for key, name in _NUTRIENT_LINES:
+        if key in nf.omitted_nutrients:
+            continue
+        amount = getattr(nf, NUTRIENT_FIELD[key])
+        dv = nf.dv_declared.get(key)
+        dv_txt = "" if dv is None else f"  {dv:g}%"
+        lines.append(f"{name}: {amount:g}{dv_txt}")
+    if label.printed_ingredients:
+        lines.append("Ingredients: " + ", ".join(label.printed_ingredients))
+    if label.printed_contains:
+        lines.append("Contains: " + ", ".join(label.printed_contains))
+    return lines
+
+
 def render_png(label: Label) -> bytes:
     """Render a simple composite label panel to PNG bytes."""
     nf = label.printed
     W, H = 600, 900
     img = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(img)
-    font = ImageFont.load_default(size=18)
-    small = ImageFont.load_default(size=14)
+    if "small_print_under_6pt" in nf.legibility_flags:
+        font = ImageFont.load_default(size=8)
+        small = ImageFont.load_default(size=6)
+    else:
+        font = ImageFont.load_default(size=18)
+        small = ImageFont.load_default(size=14)
 
     y = 20
-    d.text((20, y), label.product_name or "PRODUCT", fill="black", font=font)
-    y += 24
-    if label.statement_of_identity:
-        d.text((20, y), label.statement_of_identity, fill="black", font=small)
-        y += 20
-    if label.net_quantity:
-        d.text((20, y), label.net_quantity, fill="black", font=small)
-        y += 20
-    if label.printed_healthy_flag:
-        d.text((20, y), "HEALTHY", fill="green", font=font)
-        y += 22
-    if label.printed_fop_symbol:
-        d.text((20, y), "[FOP SYMBOL]", fill="blue", font=small)
-        y += 20
-    for c in label.printed_claims:
-        d.text((20, y), c.upper(), fill="black", font=font)
-        y += 22
-
-    y += 10
-    d.line((20, y, W - 20, y), fill="black", width=2)
-    y += 8
-    d.text((20, y), "Nutrition Facts", fill="black", font=font)
-    y += 20
-    d.text((20, y), f"Serving Size {nf.serving_size_household} ({nf.serving_size_grams:g}g)", fill="black", font=small)
-    y += 18
-    d.text((20, y), f"Servings {nf.servings_per_container:g}", fill="black", font=small)
-    y += 18
-    d.text((20, y), f"Calories {nf.calories:g}", fill="black", font=small)
-    y += 18
-    for key, label_n in (("total_fat", "Total Fat"), ("sat_fat", "Saturated Fat"),
-                         ("cholesterol", "Cholesterol (mg)"), ("sodium", "Sodium (mg)"),
-                         ("total_carb", "Total Carbohydrate"), ("fiber", "Dietary Fiber"),
-                         ("total_sugars", "Total Sugars"), ("added_sugars", "Added Sugars"),
-                         ("protein", "Protein"), ("vit_d", "Vitamin D (mcg)"),
-                         ("calcium", "Calcium (mg)"), ("iron", "Iron (mg)"),
-                         ("potassium", "Potassium (mg)")):
-        if key in nf.omitted_nutrients:
-            continue
-        amount = getattr(nf, NUTRIENT_FIELD[key])
-        dv = nf.dv_declared.get(key)
-        dv_txt = "" if dv is None else f"  {dv:g}%"
-        d.text((20, y), f"{label_n}: {amount:g}{dv_txt}", fill="black", font=small)
-        y += 16
-
-    if label.printed_ingredients:
-        y += 8
-        d.text((20, y), "Ingredients: " + ", ".join(label.printed_ingredients), fill="black", font=small)
-        y += 20
-    if label.printed_contains:
-        d.text((20, y), "Contains: " + ", ".join(label.printed_contains), fill="black", font=small)
-        y += 20
+    title = label.product_name or "PRODUCT"
+    claims_u = {c.upper() for c in label.printed_claims}
+    for line in _panel_lines(label):
+        if line in {title, "HEALTHY", "Nutrition Facts"} or line in claims_u:
+            use, step = font, 22
+            fill = "green" if line == "HEALTHY" else "black"
+        else:
+            use, step = small, 16
+            fill = "blue" if line == "[FOP SYMBOL]" else "black"
+        d.text((20, y), line, fill=fill, font=use)
+        y += step
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")

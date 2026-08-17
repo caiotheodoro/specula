@@ -3,6 +3,9 @@
 One record per task: {"image": <png bytes>, "messages": [{role, content}],
 "assistant": <verdict json>}. Images are stored alongside (arrow shards in
 P3). Runs on CPU; images come from forge's render_png.
+
+specula_forge must be on PYTHONPATH (pytest sets ../forge/src via
+pyproject; otherwise PYTHONPATH=src:../forge/src).
 """
 
 from __future__ import annotations
@@ -53,3 +56,17 @@ def build(tasks_jsonl: Path, out_dir: Path, rng_seed: int = 7) -> None:
             for ex in shard:
                 f.write(json.dumps(ex) + "\n")
         print(f"wrote {out} ({len(shard)} examples)")
+
+
+def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--tasks-file", required=True)
+    ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--seed", type=int, default=7)
+    args = ap.parse_args()
+    build(Path(args.tasks_file), Path(args.out_dir), rng_seed=args.seed)
+
+
+if __name__ == "__main__":
+    main()

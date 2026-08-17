@@ -22,5 +22,5 @@ dev = ["pytest>=8.0", "unsloth>=2025.11"]
 package = false
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "../forge/src"]
 testpaths = ["tests"]

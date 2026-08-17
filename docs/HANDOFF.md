@@ -23,26 +23,26 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
 - **P0 scaffold**: complete — CONTRACTS, README, all packages, cloud, docs.
 - **P1 oracle**: live in `forge/src/specula_forge/verify.py` (printed-vs-true
   design). RACC table verified against eCFR 21 CFR 101.12(b); 2026 "healthy"
-  rule verified against 101.65(d)(3)(iii) Table 4 (see DECISIONS.md). DV
-  reference values are the standard 2020 values; full-table re-check of
-  101.9(c)(8)(iv) still queued.
-- **P2 generator**: live (`generate.py`) — renders composite PNGs, injects 11
-  violation classes, oracle gate enforced, deterministic per seed.
-- **P3+**: not started — dataset builder + benchmark eval + Modal train/RLVR
-  are stubs.
-- **Verified green**: `make validate` (14 tests); 400-task pilot (305 FLAG),
-  stratified split overlap 0, contamination leak-probe ROC clean.
+  rule verified against 101.65(d)(3)(iii) Table 4. DV_REF confirmed against
+  21 CFR 101.9 (c)(8)(iv) RDIs + (c)(9) DRVs (see DECISIONS.md). Claim and
+  health-claim *condition* expansion still open.
+- **P2 generator**: live (`generate.py`) — all 14 taxonomy classes in `ALL`,
+  oracle gate enforced, health-claim / FORMATTING / LEGIBILITY now visible
+  on the PNG. `difficulty` is still unused. OCR/glare/openFDA not started.
+- **P3**: dataset builder has a CLI; eval uses SYSTEM_PROMPT + real pixels +
+  resumable JSONL + oracle-mock; citation exact-match is scored. Modal smoke
+  path is 4-bit + dummy records + `max_steps=4` — **not yet run on GPU**.
+- **Verified green**: `make validate` (25 forge + 13 model). Existing 400-task
+  pilot JSONL is stale vs the new ALL/render; regenerate before a P3 freeze.
 
 ## Next actions
 
-1. **P1 finish**: confirm DV_REF against full 101.9(c)(8)(iv) table; add
-   FORMATTING/LEGIBILITY extras (currently flag-based); expand claim and
-   health-claim condition checks.
-2. **P2 finish**: OCR-noise / rotation / glare augmentation; seed from real
-   openFDA violation patterns; adversarial near-threshold difficulty.
-3. **P3**: build train/val/benchmark (seed 7 / 777) via the CLI; then run the
-   **smoke LoRA on Modal** to validate Qwen3.8-27B DeltaNet fine-tuning
-   tooling (the gating risk — model is days old).
+1. **P1 finish**: expand claim and health-claim condition checks; hand-built
+   CFR fixtures per class; tighten allergen tokens if needed.
+2. **P2 finish**: drive `difficulty`; near-threshold injectors; OCR-noise /
+   rotation / glare; static openFDA mix; then regenerate seed-7 / 777.
+3. **P3 smoke**: `modal run cloud/modal_train.py --smoke` (≪1 GPU-hr). This
+   still gates all four forge repos. Do not start full SFT until it steps.
 4. Wire a real provider adapter into `benchmark_eval._predict_one` (local
    vLLM/MLX or frontier API) for head-to-head.
 

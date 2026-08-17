@@ -88,3 +88,9 @@ CONTRACTS.md; revise only with measured evidence.
 - Rationale: correctness of %DV depends on these; flagged honestly as
   standard-values pending the full-table confirmation.
 - Evidence: verify.py DV_REF; test_dv_math_anchor.
+
+## 2026-08-17 — P1 — DV_REF confirmed against 21 CFR 101.9 (c)(8)(iv) + (c)(9)
+- Decision: keep current DV_REF numbers; they match the adult ≥4 tables. Note that HANDOFF called this a 101.9(c)(8)(iv) re-check, but macronutrient DVs live in (c)(9) DRVs; (c)(8)(iv) is the vitamin/mineral RDI table. `total_sugars` has no statutory DV and remains a non-statutory 50 g alias of added sugars.
+- Rationale: wrong DVs would silently poison DV_ERROR, source-claim %DV, and healthy/FOP limits while the oracle gate still passed.
+- Evidence: Cornell LII eCFR text of 21 CFR 101.9 fetched 2026-08-17 (eCFR.gov HTML was CAPTCHA-blocked); forge test_dv_ref_matches_101_9_tables.
+- Alternatives rejected: adding optional (c)(8)(iv) vitamins to NutritionFacts; deleting total_sugars from DV_REF in this pass.

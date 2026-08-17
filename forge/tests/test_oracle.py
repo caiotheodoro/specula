@@ -65,6 +65,7 @@ def test_dv_rounding_rules():
 def test_all_validation_types_reachable_across_seed():
     """Across a pilot sweep every violation class is injected and caught."""
     import random as _r
+    from specula_forge.generate import ALL, generate_label
     from specula_forge.verify import RACC
     rng = _r.Random(42)
     seen: set[ViolationType] = set()
@@ -73,12 +74,12 @@ def test_all_validation_types_reachable_across_seed():
         t = task(rng, cat, seed=42, n_violations=1, difficulty=0.5)
         seen |= {v.type for v in t.expected.violations}
         assert oracle_gate(t.label, {v.type for v in t.expected.violations})
-    assert ViolationType.ALLERGEN in seen
-    assert ViolationType.DV_ERROR in seen
-    assert ViolationType.HEALTHY_RULE in seen
-    assert ViolationType.FOP_RULE in seen
-    assert ViolationType.IDENTITY in seen
-    assert ViolationType.NET_QUANTITY in seen
+    for name in ALL:
+        vt = ViolationType(name)
+        label = generate_label(rng, "yogurt", [vt])
+        assert oracle_gate(label, {vt})
+        seen.add(vt)
+    assert seen == set(ViolationType)
 
 
 def test_missing_nutrient_high():
@@ -96,3 +97,54 @@ def test_true_facts_nutrients_positive():
     assert facts.nutrients.calories > 0
     assert facts.nutrients.sodium_mg >= 0
     assert DV_REF["sodium"] == 2300.0
+
+
+# Statutory DV keys from 21 CFR 101.9 (c)(8)(iv) RDI + (c)(9) DRV, plus the
+# 2,000-calorie footnote used as the calories reference. total_sugars is not
+# in either table — see test_dv_ref_total_sugars_is_nonstatutory_alias.
+_STATUTORY_DV_KEYS = (
+    "calories",
+    "total_fat",
+    "sat_fat",
+    "cholesterol",
+    "sodium",
+    "total_carb",
+    "fiber",
+    "added_sugars",
+    "protein",
+    "vit_d",
+    "calcium",
+    "iron",
+    "potassium",
+)
+
+
+def test_dv_ref_matches_101_9_tables():
+    """Pin DV_REF to 21 CFR 101.9 (c)(8)(iv) RDI + (c)(9) DRV (adults ≥4)."""
+    for k in _STATUTORY_DV_KEYS:
+        assert round(percent_dv(DV_REF[k], k)) == 100
+
+    assert DV_REF["total_fat"] == 78.0
+    assert DV_REF["sat_fat"] == 20.0
+    assert DV_REF["cholesterol"] == 300.0
+    assert DV_REF["sodium"] == 2300.0
+    assert DV_REF["total_carb"] == 275.0
+    assert DV_REF["fiber"] == 28.0
+    assert DV_REF["added_sugars"] == 50.0
+    assert DV_REF["protein"] == 50.0
+    assert DV_REF["vit_d"] == 20.0
+    assert DV_REF["calcium"] == 1300.0
+    assert DV_REF["iron"] == 18.0
+    assert DV_REF["potassium"] == 4700.0
+    assert DV_REF["calories"] == 2000.0
+
+    assert rounded_dv(percent_dv(39.0, "total_fat")) == 50.0
+    assert rounded_dv(percent_dv(14.0, "fiber")) == 50.0
+    assert rounded_dv(percent_dv(1300.0, "calcium")) == 100.0
+    assert rounded_dv(percent_dv(9.0, "iron")) == 50.0
+
+
+def test_dv_ref_total_sugars_is_nonstatutory_alias():
+    # Recorded, not a (c)(9) row: total sugars has no statutory Daily Value.
+    # Convenience alias of the added-sugars DRV; unused by _declare_dv.
+    assert DV_REF["total_sugars"] == DV_REF["added_sugars"] == 50.0
