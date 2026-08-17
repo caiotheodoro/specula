@@ -23,23 +23,24 @@ from .schema import (
 )
 
 # ---------------------------------------------------------------------------
-# Reference data (public law) — RACC subset, 21 CFR 101.12(b). P1 verifies
-# each entry against eCFR; categories below are representative.
+# Reference data (public law). RACC values verified against eCFR 21 CFR
+# 101.12(b) Table 2 on 2026-08-17; DV values are the standard 2020 update
+# (21 CFR 101.9(c)(8)(iv)) — full-table re-check pending (see DECISIONS.md).
 # ---------------------------------------------------------------------------
 RACC: dict[str, tuple[str, float]] = {
-    "beverages": ("240 mL (8 fl oz)", 245.0),
-    "cereal_ready_to_eat": ("1 cup (30 g)", 30.0),
+    "beverages": ("8 fl oz (240 mL)", 240.0),          # juices, nectars, fruit drinks
+    "cereal_ready_to_eat": ("1 cup (40 g)", 40.0),     # RTE cereal 20-<43 g per cup
     "cookies": ("3 cookies (30 g)", 30.0),
-    "crackers": ("5 crackers (30 g)", 30.0),
+    "crackers": ("5 crackers (30 g)", 30.0),           # snack crackers
     "bread": ("1 slice (50 g)", 50.0),
-    "snack_chips": ("1 oz (28 g)", 28.0),
-    "yogurt": ("1 cup (225 g)", 225.0),
+    "snack_chips": ("1 oz (28 g)", 30.0),              # snacks, all varieties
+    "yogurt": ("1 cup (170 g)", 170.0),
     "soup_ready_to_serve": ("1 cup (245 g)", 245.0),
-    "vegetables_leafy": ("2 cups (85 g)", 85.0),
+    "vegetables_leafy": ("2 cups (85 g)", 85.0),       # fresh/frozen vegetables
     "fruits": ("1 cup (140 g)", 140.0),
-    "candy": ("40 g", 40.0),
-    "frozen_dessert": ("2/3 cup (65 g)", 65.0),
-    "pizza": ("1/4 pizza (145 g)", 145.0),
+    "candy": ("1 oz (30 g)", 30.0),                    # all other candies
+    "frozen_dessert": ("2/3 cup (65 g)", 65.0),        # ice cream/sherbet (g estimate)
+    "pizza": ("1/4 pizza (140 g)", 140.0),             # not measurable with cup
 }
 
 # Reference daily values (21 CFR 101.9(c)(8)(iv), 2020 update)
@@ -384,20 +385,22 @@ def _check_dv(printed: NutritionFacts) -> list[Violation]:
 
 
 def _healthy_criteria(nf: NutritionFacts) -> list[Violation]:
-    """2026 healthy criteria on true nutrients (thresholds verified in P1)."""
+    """2026 'healthy' implied-claim criteria — verified against 21 CFR
+    101.65(d)(3)(iii) Table 4 (mixed product): added sugars <=10% DV,
+    sodium <=15% DV, saturated fat <=10% DV."""
     out: list[Violation] = []
     added_dv = percent_dv(nf.added_sugars_g, "added_sugars")
     sat_dv = percent_dv(nf.sat_fat_g, "sat_fat")
     sodium_dv = percent_dv(nf.sodium_mg, "sodium")
-    limits = {"added sugars <= 5% DV": added_dv <= 5.0,
-              "saturated fat <= 5% DV": sat_dv <= 5.0,
-              "sodium <= 10% DV": sodium_dv <= 10.0}
+    limits = {"added sugars <= 10% DV": added_dv <= 10.0,
+              "saturated fat <= 10% DV": sat_dv <= 10.0,
+              "sodium <= 15% DV": sodium_dv <= 15.0}
     for label, ok in limits.items():
         if not ok:
             out.append(Violation(
                 type=ViolationType.HEALTHY_RULE,
                 severity=Severity.HIGH,
-                cfr="21 CFR 101.65 (2026 'healthy' rule)",
+                cfr="21 CFR 101.65(d)(3)(iii)",
                 observed=f"'{label}' violated",
                 expected="product must meet all 2026 healthy criteria",
                 correction="remove the claim or reformulate",

@@ -235,12 +235,12 @@ def _realize(facts: ProductFacts, injections: list[ViolationType],
 
     if ViolationType.HEALTHY_RULE in injected:
         healthy = True
-        nf.added_sugars_g = max(nf.added_sugars_g, 3.0)  # > 5% DV of added sugars
+        nf.added_sugars_g = max(nf.added_sugars_g, 6.0)  # > 10% DV of added sugars
         facts.nutrients.added_sugars_g = nf.added_sugars_g
 
     if ViolationType.FOP_RULE in injected:
         fop = "facts-on-front"
-        nf.sodium_mg = max(nf.sodium_mg, 231.0)  # > 10% DV of sodium
+        nf.sodium_mg = max(nf.sodium_mg, 350.0)  # > 15% DV of sodium
         facts.nutrients.sodium_mg = nf.sodium_mg
 
     if ViolationType.IDENTITY in injected:

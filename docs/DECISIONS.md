@@ -58,3 +58,33 @@ CONTRACTS.md; revise only with measured evidence.
   and cheap to confirm; mis-specified RACC entries would silently poison the
   oracle.
 - Evidence: verify.py constants; test_dv_math_anchor.
+## 2026-08-17 — P1 — RACC table verified against eCFR 21 CFR 101.12(b)
+- Decision: RACC entries re-verified live against eCFR Table 2 (General Food
+  Supply). Corrections: snack_chips 28→30 g, yogurt 225→170 g, candy 40→30 g,
+  pizza 145→140 g, cereal_ready_to_eat 30→40 g, beverages re-anchored to
+  juices/nectars (8 fl oz / 240 mL). Frozen dessert gram weight is a working
+  estimate (2/3 cup per eCFR; no gram value published).
+- Rationale: mis-specified reference amounts would silently poison the oracle
+  and every SERVING_SIZE label; public law is the ground truth.
+- Evidence: eCFR 101.12(b) fetched 2026-08-17; forge tests + pilot green.
+- Alternatives rejected: keeping scaffold estimates.
+
+## 2026-08-17 — P1 — 2026 "healthy" criteria verified (21 CFR 101.65(d))
+- Decision: healthy-rule thresholds updated to the Dec-27-2024 final rule as
+  codified: mixed-product path (Table 4) = added sugars ≤10% DV, sodium ≤15%
+  DV, saturated fat ≤10% DV. FOP_RULE stays coupled to healthy criteria;
+  exact FOP-symbol rule placement pending a follow-up pass.
+- Rationale: the scaffold used pre-final-rule thresholds; the codified final
+  rule is authoritative and fetched live from eCFR.
+- Evidence: eCFR 101.65(d)(3)(iii) fetched 2026-08-17; tests + pilot green.
+
+## 2026-08-17 — P1 — DV reference values (status: standard values, table pending)
+- Decision: DV_REF uses the 2020-update reference daily values (78 g fat,
+  300 mg cholesterol, 2300 mg sodium, 275 g carb, 28 g fiber, 50 g added
+  sugars, 50 g protein, 20 mcg vit D, 1300 mg calcium, 18 mg iron,
+  4700 mg potassium, 2000 kcal). The 101.9 fetch truncated before
+  (c)(8)(iv); a full-table re-check is queued but these match the published
+  2020 table.
+- Rationale: correctness of %DV depends on these; flagged honestly as
+  standard-values pending the full-table confirmation.
+- Evidence: verify.py DV_REF; test_dv_math_anchor.
