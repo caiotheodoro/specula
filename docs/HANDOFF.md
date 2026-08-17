@@ -30,7 +30,7 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   oracle gate enforced, health-claim / FORMATTING / LEGIBILITY now visible
   on the PNG. `difficulty` drives near-threshold claims, near-RACC servings,
   and OCR/rotation/glare. `--mix openfda` uses a static class-weight fixture.
-- **P3**: dataset builder has a CLI; eval uses SYSTEM_PROMPT + real pixels +
+- **P3**: dataset builder has a CLI; eval uses SYSTEM_PROMPT + real pixels + OpenAI-compat provider +
   resumable JSONL + oracle-mock; citation exact-match is scored. Modal smoke
   path ran on Modal L4: 4 optimizer steps, train_loss 3.279, checkpoint
   `/checkpoints/sft-final` on volume `specula-checkpoints`
@@ -45,8 +45,9 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
    (`sft_records_from_bytes`). Next GPU spend:
    `modal run cloud/modal_train.py --epochs 2 --data forge/data/train.jsonl`.
    Still text-only (no PNG in the chat). Do not mix RLVR into SFT.
-2. Wire a real provider adapter into `benchmark_eval._predict_one` (local
-   vLLM/MLX or frontier API) for head-to-head.
+2. **P6 head-to-head**: `benchmark_eval` now posts OpenAI-compat chat
+   (PNG data URL) when `SPECULA_LLM_BASE_URL` is set. Point it at vLLM,
+   MLX, or a frontier API and fill `docs/BENCHMARK.md`.
 
 ## Bootstrap (fresh agent)
 

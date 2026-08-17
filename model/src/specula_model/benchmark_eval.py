@@ -29,13 +29,53 @@ def _eval_payload(task) -> dict:
     return {"system": SYSTEM_PROMPT, "image": render_png(task.label)}
 
 
+def _default_post(url: str, headers: dict, body: dict) -> dict:
+    import urllib.request
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", **headers},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        return json.loads(resp.read().decode())
+
+
+def complete_chat(model: str, payload: dict, post=None) -> str:
+    """OpenAI-compatible /v1/chat/completions. Image sent as a PNG data URL."""
+    import base64
+    import os
+    base = (os.environ.get("SPECULA_LLM_BASE_URL")
+            or os.environ.get("OPENAI_BASE_URL") or "").rstrip("/")
+    key = (os.environ.get("SPECULA_LLM_API_KEY")
+           or os.environ.get("OPENAI_API_KEY") or "")
+    if not base:
+        raise NotImplementedError(
+            "set SPECULA_LLM_BASE_URL (or OPENAI_BASE_URL) for a real provider")
+    image_b64 = base64.b64encode(payload["image"]).decode()
+    body = {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": payload["system"]},
+            {"role": "user", "content": [
+                {"type": "image_url",
+                 "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+                {"type": "text",
+                 "text": "Review this food label. Emit only the verdict JSON."},
+            ]},
+        ],
+    }
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    data = (post or _default_post)(f"{base}/chat/completions", headers, body)
+    return data["choices"][0]["message"]["content"]
+
+
 def _predict_one(task, model: str) -> str:
     payload = _eval_payload(task)
     if model == "oracle-mock":
         return task.expected.model_dump_json()
-    raise NotImplementedError(
-        "wire a real provider adapter (local vLLM/MLX or frontier API) in P3 "
-        f"(system={len(payload['system'])} chars, image={len(payload['image'])} bytes)")
+    return complete_chat(model, payload)
 
 
 def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,

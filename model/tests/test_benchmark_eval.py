@@ -76,3 +76,32 @@ def test_eval_payload_uses_system_prompt_and_png():
     payload = _eval_payload(t)
     assert payload["system"] == SYSTEM_PROMPT
     assert payload["image"].startswith(b"\x89PNG")
+
+
+def test_complete_chat_posts_openai_compat_and_returns_content(monkeypatch):
+    from specula_model.benchmark_eval import complete_chat
+
+    captured = {}
+
+    def fake_post(url, headers, body):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["body"] = body
+        return {"choices": [{"message": {"content": '{"verdict":"PASS","violations":[]}'}}]}
+
+    monkeypatch.setenv("SPECULA_LLM_BASE_URL", "http://llm.local/v1")
+    monkeypatch.setenv("SPECULA_LLM_API_KEY", "sk-test")
+    out = complete_chat("qwen-local", {"system": "sys", "image": b"\x89PNG"}, post=fake_post)
+    assert out == '{"verdict":"PASS","violations":[]}'
+    assert captured["url"] == "http://llm.local/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer sk-test"
+    assert captured["body"]["model"] == "qwen-local"
+    assert captured["body"]["messages"][0]["role"] == "system"
+
+
+def test_predict_one_uses_complete_chat_for_non_mock(monkeypatch):
+    from specula_model import benchmark_eval as be
+
+    t = task(random.Random(7), "cookies", seed=7, n_violations=1)
+    monkeypatch.setattr(be, "complete_chat", lambda model, payload, post=None: '{"verdict":"FLAG","violations":[]}')
+    assert be._predict_one(t, "deepseek-v4-flash") == '{"verdict":"FLAG","violations":[]}'
