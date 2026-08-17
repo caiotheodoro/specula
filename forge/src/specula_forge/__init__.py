@@ -1,4 +1,4 @@
-"""Plumb forge package.
+"""Specula forge package.
 
 Seeded synthetic label generator + CFR verifier-as-oracle + contamination
 monitor + golden benchmark. Contracts in ../CONTRACTS.md.

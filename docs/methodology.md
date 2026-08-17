@@ -1,4 +1,4 @@
-# Plumb — Methodology (shared across the four forge repos)
+# Specula — Methodology (shared across the four forge repos)
 
 This is the recipe that already beat a frontier model with a 1.7B LoRA
 (ReconForge, `~/Documents/personal/reconforge`) — now scaled to a 28B

@@ -1,4 +1,4 @@
-"""Canonical Plumb data model. Mirrors CONTRACTS.md §1–§2.
+"""Canonical Specula data model. Mirrors CONTRACTS.md §1–§2.
 
 Design: a `Label` carries both what is *printed* on the label (as rendered,
 what the model sees) and the *true* product facts (what the oracle compares

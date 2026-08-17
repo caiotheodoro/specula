@@ -1,7 +1,7 @@
 """Benchmark eval: run a model adapter against the golden task set and score.
 
 Usage:
-  python -m plumb_model.benchmark_eval --adapter-path adapters/champion \
+  python -m specula_model.benchmark_eval --adapter-path adapters/champion \
       --tasks-file data/benchmark.jsonl [--model deepseek-v4-flash] [--concurrency 8]
 
 Scores per CONTRACTS.md §2 via forge's scorer. Writes results.jsonl + report.
@@ -29,8 +29,8 @@ def _predict_one(prompt: str, model: str) -> str:
 
 def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,
                   out: Path) -> list[dict]:
-    from plumb_forge.score import score_predictions
-    from plumb_forge.schema import Task
+    from specula_forge.score import score_predictions
+    from specula_forge.schema import Task
 
     tasks = [Task.model_validate_json(l) for l in
              tasks_jsonl.read_text().splitlines() if l.strip()]
@@ -58,7 +58,7 @@ def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,
 def _to_verdict(p: VerdictOut | None):
     if p is None:
         return None
-    from plumb_forge.schema import Verdict, Violation
+    from specula_forge.schema import Verdict, Violation
     return Verdict(verdict=p.verdict, violations=[
         Violation(type=v.type, severity=v.severity, cfr=v.cfr,
                   observed=v.observed, expected=v.expected,
@@ -66,7 +66,7 @@ def _to_verdict(p: VerdictOut | None):
 
 
 def _summarize(results: list[dict]) -> dict:
-    from plumb_forge.score import summarize
+    from specula_forge.score import summarize
     return summarize(results)
 
 

@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /workspace
 
-# Plumb training deps (SOTA 2026 stack)
+# Specula training deps (SOTA 2026 stack)
 RUN pip install --no-cache-dir \
     "torch>=2.6" "transformers>=4.55" "peft>=0.13" "trl>=0.16" \
     "accelerate>=1.0" "datasets>=3.0" "pillow>=11" "huggingface_hub>=0.26" \
@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir \
 
 COPY . .
 
-CMD ["python", "-m", "plumb_model.train"]
+CMD ["python", "-m", "specula_model.train"]

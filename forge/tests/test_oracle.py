@@ -2,9 +2,9 @@
 
 import random
 
-from plumb_forge.generate import _copy_nf, _pick_facts, task
-from plumb_forge.schema import NutritionFacts, ProductFacts, ViolationType
-from plumb_forge.verify import (
+from specula_forge.generate import _copy_nf, _pick_facts, task
+from specula_forge.schema import NutritionFacts, ProductFacts, ViolationType
+from specula_forge.verify import (
     DV_REF,
     oracle_gate,
     percent_dv,
@@ -65,7 +65,7 @@ def test_dv_rounding_rules():
 def test_all_validation_types_reachable_across_seed():
     """Across a pilot sweep every violation class is injected and caught."""
     import random as _r
-    from plumb_forge.verify import RACC
+    from specula_forge.verify import RACC
     rng = _r.Random(42)
     seen: set[ViolationType] = set()
     for i in range(400):

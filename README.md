@@ -1,4 +1,4 @@
-# Plumb
+# Specula
 
 **Fine-tune a multimodal Qwen3.8-27B (28B, Apache-2.0) on Modal/GCP free
 credits so it beats frontier models at FDA food-label compliance review.**
@@ -7,8 +7,8 @@ A label image goes in → a cited compliance report comes out
 (`PASS | FLAG` + per-violation severity, exact 21 CFR citation, correction).
 Full process automation: intake → rule application → verdict → report.
 
-This is the first of four parallel repos (`plumb`, `seam`,
-`tally`, `attest`) built on one shared methodology (see `docs/methodology.md`):
+This is the first of four parallel repos (`specula`, `suture`,
+`plumb`, `habeas`) built on one shared methodology (see `docs/methodology.md`):
 seeded synthetic generator + deterministic verifier-as-oracle + RLVR, the
 recipe that already made a 1.7B LoRA beat a frontier model on financial
 reconciliation (ReconForge). Here the model is 16× bigger, multimodal, and
@@ -55,10 +55,10 @@ may change the contracts without a DECISIONS.md entry and measured evidence.
 
 ```
 forge/      seeded label generator + CFR verifier-as-oracle + contamination
-            monitor + golden benchmark (uv project, package plumb_forge)
+            monitor + golden benchmark (uv project, package specula_forge)
 model/      multimodal dataset builder, QLoRA SFT, GRPO RLVR, ReST-EM,
             benchmark eval, frontier head-to-head, HF model card
-            (package plumb_model)
+            (package specula_model)
 cloud/      Modal app + Dockerfile + checkpoint sync + GCP spot scripts
 eval/       deterministic golden harness (no LLM judges for core metrics)
 docs/       corpus (CFR reference), DECISIONS.md, BENCHMARK.md, HANDOFF.md,

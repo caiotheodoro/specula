@@ -28,8 +28,8 @@ def _b64(img_bytes: bytes) -> str:
 
 def build(tasks_jsonl: Path, out_dir: Path, rng_seed: int = 7) -> None:
     """Convert forge task JSONL into a sharded multimodal dataset."""
-    from plumb_forge.generate import render_png
-    from plumb_forge.schema import Task
+    from specula_forge.generate import render_png
+    from specula_forge.schema import Task
 
     out_dir.mkdir(parents=True, exist_ok=True)
     rng = random.Random(rng_seed)

@@ -1,7 +1,7 @@
 [project]
-name = "plumb-model"
+name = "specula-model"
 version = "0.1.0"
-description = "Plumb: dataset builder, QLoRA SFT, GRPO RLVR, benchmark eval"
+description = "Specula: dataset builder, QLoRA SFT, GRPO RLVR, benchmark eval"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",

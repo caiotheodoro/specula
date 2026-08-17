@@ -1,4 +1,4 @@
-"""Plumb verifier-as-oracle.
+"""Specula verifier-as-oracle.
 
 Deterministic rule engine over public law (21 CFR 101.9, 101.12, 101.13,
 101.54-101.60, 101.72-101.83, FALCPA + sesame, 2026 "healthy"/FOP rules).

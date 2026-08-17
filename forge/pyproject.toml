@@ -1,7 +1,7 @@
 [project]
-name = "plumb-forge"
+name = "specula-forge"
 version = "0.1.0"
-description = "Plumb: seeded label generator + CFR verifier-as-oracle + benchmark"
+description = "Specula: seeded label generator + CFR verifier-as-oracle + benchmark"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",

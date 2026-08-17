@@ -1,11 +1,11 @@
-# Plumb — Handoff
+# Specula — Handoff
 
 ## Status (2026-08-17)
 
 - **P0 scaffold**: complete. CONTRACTS, README, forge (schema, oracle,
   generator, score, contamination, CLI), model (schema, dataset builder,
   benchmark eval), cloud (Modal app, Dockerfile, GCP script), docs.
-- **P1 (oracle engine)**: first cut live in `forge/src/plumb_forge/verify.py`
+- **P1 (oracle engine)**: first cut live in `forge/src/specula_forge/verify.py`
   with the printed-vs-true design. **Pending**: re-verify RACC + DV reference
   tables against eCFR; add FORMATTING and LEGIBILITY rules; expand claim and
   health-claim condition checks.

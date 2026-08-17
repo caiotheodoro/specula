@@ -1,4 +1,4 @@
-# Plumb — Benchmark Report
+# Specula — Benchmark Report
 
 _Template. Populated after P6 (head-to-head vs frontier)._
 
@@ -6,7 +6,7 @@ _Template. Populated after P6 (head-to-head vs frontier)._
 
 | Model | Severity-w. recall | CRITICAL recall | HIGH recall | Precision | Parse |
 |---|---|---|---|---|---|
-| **Plumb (Qwen3.8-27B QLoRA + RLVR)** | — | — | — | — | — |
+| **Specula (Qwen3.8-27B QLoRA + RLVR)** | — | — | — | — | — |
 | Qwen3.8-2.4T-A95B (frontier, zero-shot) | — | — | — | — | — |
 | DeepSeek v4-flash (frontier, zero-shot) | — | — | — | — | — |
 | Base Qwen3.8-27B (zero-shot) | — | — | — | — | — |
@@ -14,9 +14,9 @@ _Template. Populated after P6 (head-to-head vs frontier)._
 ## Run book
 
 ```sh
-cd forge && uv run python -m plumb_forge.cli pilot --seed 777 --n 1000 --out data/benchmark.jsonl
-cd model && uv run python -m plumb_model.benchmark_eval --tasks-file ../forge/data/benchmark.jsonl \
-  --model plumb --adapter-path adapters/champion
+cd forge && uv run python -m specula_forge.cli pilot --seed 777 --n 1000 --out data/benchmark.jsonl
+cd model && uv run python -m specula_model.benchmark_eval --tasks-file ../forge/data/benchmark.jsonl \
+  --model specula --adapter-path adapters/champion
 ```
 
 ## Contamination
