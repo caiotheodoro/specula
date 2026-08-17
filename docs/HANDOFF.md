@@ -33,15 +33,15 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
 - **P3**: dataset builder has a CLI; eval uses SYSTEM_PROMPT + real pixels +
   resumable JSONL + oracle-mock; citation exact-match is scored. Modal smoke
   path is 4-bit + dummy records + `max_steps=4` — **not yet run on GPU**.
-- **Verified green**: `make validate` (25 forge + 13 model). Existing 400-task
-  pilot JSONL is stale vs the new ALL/render; regenerate before a P3 freeze.
+- **Verified green**: `make validate` (39 forge + 13 model). Seed-7 pilot
+  400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
+  (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
 ## Next actions
 
-1. **Regen**: seed-7 train/val + seed-777 benchmark, then leakprobe.
-2. **P3 smoke**: `modal run cloud/modal_train.py --smoke` (≪1 GPU-hr). This
+1. **P3 smoke**: `modal run cloud/modal_train.py --smoke` (≪1 GPU-hr). This
    still gates all four forge repos. Do not start full SFT until it steps.
-4. Wire a real provider adapter into `benchmark_eval._predict_one` (local
+2. Wire a real provider adapter into `benchmark_eval._predict_one` (local
    vLLM/MLX or frontier API) for head-to-head.
 
 ## Bootstrap (fresh agent)
