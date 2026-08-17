@@ -125,3 +125,64 @@ def test_forced_injection_gate_holds_across_categories():
             vt = ViolationType(name)
             label = generate.generate_label(rng, cat, [vt])
             assert oracle_gate(label, {vt}), f"{vt} failed gate on {cat}"
+
+
+def test_high_difficulty_serving_is_near_racc():
+    from specula_forge.verify import RACC
+    rng = random.Random(40)
+    label = generate.generate_label(
+        rng, "bread", [ViolationType.SERVING_SIZE], difficulty=0.9)
+    racc = RACC["bread"][1]
+    ratio = label.printed.serving_size_grams / racc
+    assert 0.9 <= ratio <= 1.15
+    assert abs(label.printed.serving_size_grams - racc) > 1e-6
+
+
+def test_low_difficulty_serving_is_far_from_racc():
+    from specula_forge.verify import RACC
+    rng = random.Random(41)
+    label = generate.generate_label(
+        rng, "bread", [ViolationType.SERVING_SIZE], difficulty=0.1)
+    racc = RACC["bread"][1]
+    ratio = label.printed.serving_size_grams / racc
+    assert ratio <= 0.6 or ratio >= 1.25
+
+
+def test_high_difficulty_claim_is_just_over_limit():
+    from specula_forge.verify import CLAIM_MAX, CLAIM_RULES, nutrient_value
+    rng = random.Random(42)
+    for _ in range(20):
+        label = generate.generate_label(
+            rng, "cookies", [ViolationType.CLAIM_THRESHOLD], difficulty=0.9)
+        if not label.printed_claims:
+            continue
+        claim = label.printed_claims[0].lower()
+        if claim in CLAIM_MAX:
+            amount = nutrient_value(label.true.nutrients, CLAIM_RULES[claim])
+            limit = CLAIM_MAX[claim]
+            assert limit < amount <= limit + 2.0
+            return
+        from specula_forge.verify import CLAIM_LT
+        if claim in CLAIM_LT:
+            nutrient, limit = CLAIM_LT[claim]
+            amount = nutrient_value(label.true.nutrients, nutrient)
+            assert amount == limit
+            return
+    raise AssertionError("no numeric-threshold claim realized")
+
+
+def test_render_aug_deterministic_and_changes_pixels_not_signature():
+    rng = random.Random(43)
+    quiet = generate.generate_label(rng, "bread", [], difficulty=0.1)
+    noisy = quiet.model_copy(deep=True)
+    noisy.difficulty = 0.9
+    a = generate.render_png(noisy)
+    b = generate.render_png(noisy)
+    assert a == b
+    assert generate.render_png(quiet) != a
+    assert generate.signature(quiet) == generate.signature(noisy)
+
+
+def test_openfda_weights_cover_all_classes():
+    assert set(generate.OPENFDA_WEIGHTS) == set(generate.ALL)
+    assert abs(sum(generate.OPENFDA_WEIGHTS.values()) - 1.0) < 1e-6

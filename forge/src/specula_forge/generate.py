@@ -16,8 +16,10 @@ import random
 from PIL import Image, ImageDraw, ImageFont
 
 from .schema import Label, NutritionFacts, ProductFacts, Task, Verdict, ViolationType
-from .verify import RACC, NUTRIENT_FIELD, TOP9_GROUPS, _claim_violations, \
-    rounded_dv, verify
+from .verify import (
+    CLAIM_LT, CLAIM_MAX, CLAIM_RULES, NUTRIENT_FIELD, RACC, TOP9_GROUPS,
+    _claim_violations, rounded_dv, verify,
+)
 
 BASE_INGREDIENTS: dict[str, list[str]] = {
     "cereal_ready_to_eat": ["whole grain oats", "sugar", "corn flour", "salt", "malt flavor"],
@@ -90,6 +92,15 @@ ALL = ["ALLERGEN_STATEMENT", "SERVING_SIZE", "CLAIM_THRESHOLD", "HEALTH_CLAIM",
        "MISSING_NUTRIENT", "DV_ERROR", "DV_ROUNDING", "HEALTHY_RULE",
        "FOP_RULE", "IDENTITY", "NET_QUANTITY", "FORMATTING",
        "LEGIBILITY", "ALLERGEN"]
+
+# Static mix from openFDA recall / warning-letter frequency (not live API).
+OPENFDA_WEIGHTS: dict[str, float] = {
+    "ALLERGEN": 0.22, "ALLERGEN_STATEMENT": 0.10, "CLAIM_THRESHOLD": 0.12,
+    "HEALTH_CLAIM": 0.08, "SERVING_SIZE": 0.08, "MISSING_NUTRIENT": 0.06,
+    "DV_ERROR": 0.06, "DV_ROUNDING": 0.03, "HEALTHY_RULE": 0.05,
+    "FOP_RULE": 0.04, "IDENTITY": 0.04, "NET_QUANTITY": 0.04,
+    "FORMATTING": 0.04, "LEGIBILITY": 0.04,
+}
 
 
 def _pick_facts(rng: random.Random, category: str) -> ProductFacts:
@@ -174,8 +185,10 @@ def _contains_word(group: str) -> str:
     return TOP9_GROUPS[group][0]
 
 
-def _sample_injections(rng: random.Random, n: int) -> list[ViolationType]:
+def _sample_injections(rng: random.Random, n: int,
+                       weights: dict[str, float] | None = None) -> list[ViolationType]:
     """Distinct types; never ALLERGEN + ALLERGEN_STATEMENT together."""
+    w = weights or {name: 1.0 for name in ALL}
     chosen: list[ViolationType] = []
     taken: set[ViolationType] = set()
     for _ in range(n):
@@ -193,10 +206,29 @@ def _sample_injections(rng: random.Random, n: int) -> list[ViolationType]:
             pool.append(vt)
         if not pool:
             break
-        pick = rng.choice(pool)
+        wts = [w.get(vt.value, 1.0) for vt in pool]
+        pick = rng.choices(pool, weights=wts, k=1)[0]
         chosen.append(pick)
         taken.add(pick)
     return chosen
+
+
+def _nudge_just_over(facts: ProductFacts, nf: NutritionFacts, claim: str) -> None:
+    """Move the true/printed nutrient to just over the claim limit."""
+    c = claim.strip().lower()
+    if c in CLAIM_LT:
+        nutrient, limit = CLAIM_LT[c]
+        field = NUTRIENT_FIELD[nutrient]
+        setattr(facts.nutrients, field, limit)
+        setattr(nf, field, limit)
+        return
+    if c in CLAIM_MAX:
+        nutrient = CLAIM_RULES[c]
+        field = NUTRIENT_FIELD[nutrient]
+        step = 1.0 if nutrient in ("calories", "cholesterol", "sodium") else 0.1
+        value = CLAIM_MAX[c] + step
+        setattr(facts.nutrients, field, value)
+        setattr(nf, field, value)
 
 
 def _failing_claims(facts: ProductFacts) -> list[str]:
@@ -250,14 +282,26 @@ def _realize(facts: ProductFacts, injections: list[ViolationType],
         drop = facts.allergens_present[0]
         contains = [_contains_word(g) for g in facts.allergens_present if g != drop]
     if ViolationType.SERVING_SIZE in injected:
-        offset = rng.choice(["1/2 cup", "1 tbsp", "2 cups"])
-        nf.serving_size_household = offset
-        nf.serving_size_grams = round(facts.serving_grams * rng.choice([0.5, 1.3]), 1)
+        if difficulty >= 0.6:
+            nf.serving_size_household = facts.racc_household
+            nf.serving_size_grams = round(
+                facts.serving_grams * rng.choice([0.94, 1.06]), 1)
+        else:
+            nf.serving_size_household = rng.choice(["1/2 cup", "1 tbsp", "2 cups"])
+            nf.serving_size_grams = round(
+                facts.serving_grams * rng.choice([0.5, 1.3]), 1)
 
     if ViolationType.CLAIM_THRESHOLD in injected:
         failing = _failing_claims(facts)
         if failing:
-            claims = [rng.choice(failing)]
+            if difficulty >= 0.6:
+                prefer = [c for c in failing
+                          if c.lower() in CLAIM_MAX or c.lower() in CLAIM_LT]
+                claim = rng.choice(prefer or failing)
+                _nudge_just_over(facts, nf, claim)
+            else:
+                claim = rng.choice(failing)
+            claims = [claim]
 
     if ViolationType.HEALTH_CLAIM in injected:
         health = ["cures heart disease with daily consumption"]
@@ -313,12 +357,13 @@ def _realize(facts: ProductFacts, injections: list[ViolationType],
 
 def task(rng: random.Random, category: str, seed: int,
          n_violations: int = 1, difficulty: float = 0.5,
-         max_tries: int = 12) -> Task:
+         max_tries: int = 12, mix: str | None = None) -> Task:
     """Generate a task whose oracle verdict fires exactly the injected set."""
+    weights = OPENFDA_WEIGHTS if mix == "openfda" else None
     for _ in range(max_tries):
         inj: list[ViolationType] = []
         if n_violations > 0:
-            inj = _sample_injections(rng, n_violations)
+            inj = _sample_injections(rng, n_violations, weights)
         label = generate_label(rng, category, inj, difficulty)
         from .verify import oracle_gate
         if oracle_gate(label, set(inj)):
@@ -432,6 +477,40 @@ def render_png(label: Label) -> bytes:
         d.text((20, y), line, fill=fill, font=use)
         y += step
 
+    img = _augment_png(img, label)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _augment_png(img: Image.Image, label: Label) -> Image.Image:
+    """OCR-ish noise / rotation / glare, scaled by difficulty. Deterministic."""
+    if label.difficulty < 0.25:
+        return img
+    seed = int(hashlib.sha256(
+        f"{label.id}:{label.difficulty:.2f}".encode()).hexdigest()[:8], 16)
+    rng = random.Random(seed)
+    angle = (label.difficulty - 0.25) * 10.0
+    if rng.random() < 0.5:
+        angle = -angle
+    out = img.rotate(angle, resample=Image.BICUBIC, expand=False, fillcolor="white")
+    px = out.load()
+    w, h = out.size
+    n = int(w * h * 0.008 * label.difficulty)
+    for _ in range(n):
+        x, y = rng.randrange(w), rng.randrange(h)
+        jitter = rng.randint(-35, 35)
+        r, g, b = px[x, y]
+        px[x, y] = (
+            max(0, min(255, r + jitter)),
+            max(0, min(255, g + jitter)),
+            max(0, min(255, b + jitter)),
+        )
+    # corner glare
+    fade = int(40 + 80 * label.difficulty)
+    for i in range(min(80, w)):
+        for j in range(min(80, h)):
+            r, g, b = px[i, j]
+            bump = int(fade * (1 - i / 80) * (1 - j / 80))
+            px[i, j] = (min(255, r + bump), min(255, g + bump), min(255, b + bump))
+    return out

@@ -28,7 +28,8 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   includes free / very low sodium; 101.72 and 101.74 have condition checks.
 - **P2 generator**: live (`generate.py`) — all 14 taxonomy classes in `ALL`,
   oracle gate enforced, health-claim / FORMATTING / LEGIBILITY now visible
-  on the PNG. `difficulty` is still unused. OCR/glare/openFDA not started.
+  on the PNG. `difficulty` drives near-threshold claims, near-RACC servings,
+  and OCR/rotation/glare. `--mix openfda` uses a static class-weight fixture.
 - **P3**: dataset builder has a CLI; eval uses SYSTEM_PROMPT + real pixels +
   resumable JSONL + oracle-mock; citation exact-match is scored. Modal smoke
   path is 4-bit + dummy records + `max_steps=4` — **not yet run on GPU**.
@@ -37,9 +38,8 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
 
 ## Next actions
 
-1. **P2 finish**: drive `difficulty`; near-threshold injectors; OCR-noise /
-   rotation / glare; static openFDA mix; then regenerate seed-7 / 777.
-3. **P3 smoke**: `modal run cloud/modal_train.py --smoke` (≪1 GPU-hr). This
+1. **Regen**: seed-7 train/val + seed-777 benchmark, then leakprobe.
+2. **P3 smoke**: `modal run cloud/modal_train.py --smoke` (≪1 GPU-hr). This
    still gates all four forge repos. Do not start full SFT until it steps.
 4. Wire a real provider adapter into `benchmark_eval._predict_one` (local
    vLLM/MLX or frontier API) for head-to-head.

@@ -39,17 +39,20 @@ def cli():
 @click.option("--seed", default=7)
 @click.option("--n", default=400)
 @click.option("--out", default="data/pilot.jsonl")
-def pilot(seed: int, n: int, out: str) -> None:
+@click.option("--mix", default="uniform", type=click.Choice(["uniform", "openfda"]))
+def pilot(seed: int, n: int, out: str, mix: str) -> None:
     """Generate a pilot benchmark (all categories, mixed violation counts)."""
     from .verify import RACC
     rng = random.Random(seed)
     categories = list(RACC.keys())
     tasks: list[Task] = []
+    mix_arg = None if mix == "uniform" else mix
     for i in range(n):
         cat = categories[i % len(categories)]
         n_viol = rng.choice([0, 1, 1, 2])
         diff = round(rng.random(), 2)
-        tasks.append(task(rng, cat, seed, n_violations=n_viol, difficulty=diff))
+        tasks.append(task(rng, cat, seed, n_violations=n_viol,
+                          difficulty=diff, mix=mix_arg))
     _dump(tasks, out)
     n_flag = sum(1 for t in tasks if t.expected.verdict == "FLAG")
     click.echo(f"wrote {n} tasks to {out} ({n_flag} FLAG)")
