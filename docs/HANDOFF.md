@@ -24,8 +24,8 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
 - **P1 oracle**: live in `forge/src/specula_forge/verify.py` (printed-vs-true
   design). RACC table verified against eCFR 21 CFR 101.12(b); 2026 "healthy"
   rule verified against 101.65(d)(3)(iii) Table 4. DV_REF confirmed against
-  21 CFR 101.9 (c)(8)(iv) RDIs + (c)(9) DRVs (see DECISIONS.md). Claim and
-  health-claim *condition* expansion still open.
+  21 CFR 101.9 (c)(8)(iv) RDIs + (c)(9) DRVs (see DECISIONS.md). Claim slice
+  includes free / very low sodium; 101.72 and 101.74 have condition checks.
 - **P2 generator**: live (`generate.py`) — all 14 taxonomy classes in `ALL`,
   oracle gate enforced, health-claim / FORMATTING / LEGIBILITY now visible
   on the PNG. `difficulty` is still unused. OCR/glare/openFDA not started.
@@ -37,9 +37,7 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
 
 ## Next actions
 
-1. **P1 finish**: expand claim and health-claim condition checks; hand-built
-   CFR fixtures per class; tighten allergen tokens if needed.
-2. **P2 finish**: drive `difficulty`; near-threshold injectors; OCR-noise /
+1. **P2 finish**: drive `difficulty`; near-threshold injectors; OCR-noise /
    rotation / glare; static openFDA mix; then regenerate seed-7 / 777.
 3. **P3 smoke**: `modal run cloud/modal_train.py --smoke` (≪1 GPU-hr). This
    still gates all four forge repos. Do not start full SFT until it steps.

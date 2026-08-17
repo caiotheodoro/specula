@@ -93,7 +93,7 @@ TOP9_GROUPS: dict[str, list[str]] = {
     "tree_nuts": ["almond", "walnut", "cashew", "pecan", "hazelnut",
                   "pistachio", "macadamia", "brazil nut"],
     "peanuts": ["peanut"],
-    "wheat": ["wheat", "flour", "gluten", "semolina"],
+    "wheat": ["wheat", "wheat flour", "gluten", "semolina"],
     "soybeans": ["soy", "soybean", "tofu", "edamame", "miso"],
     "sesame": ["sesame"],
 }
@@ -220,7 +220,14 @@ CLAIM_MAX: dict[str, float] = {
     "low cholesterol": 20.0,   # mg
     "low sodium": 140.0,       # mg
     "low calorie": 40.0,       # kcal
+    "very low sodium": 35.0,  # mg  21 CFR 101.61(b)(2)
 }
+CLAIM_LT: dict[str, tuple[str, float]] = {  # must be strictly below
+    "fat free": ("total_fat", 0.5),       # 21 CFR 101.62(b)(1)
+    "sugar free": ("total_sugars", 0.5),  # 21 CFR 101.60(c)(1)
+    "sodium free": ("sodium", 5.0),       # 21 CFR 101.61(b)(1)
+}
+CLAIM_RULES["very low sodium"] = "sodium"
 SOURCE_CLAIMS: dict[str, float] = {  # "good source of X" = 10-19% DV
     "calcium": "calcium",
     "iron": "iron",
@@ -237,6 +244,19 @@ def _claim_violations(claims: list[str], nf: NutritionFacts) -> list[Violation]:
     out: list[Violation] = []
     for claim in claims:
         c = claim.strip().lower()
+        if c in CLAIM_LT:
+            nutrient, limit = CLAIM_LT[c]
+            amount = nutrient_value(nf, nutrient)
+            if amount >= limit:
+                out.append(Violation(
+                    type=ViolationType.CLAIM_THRESHOLD,
+                    severity=Severity.CRITICAL,
+                    cfr="21 CFR 101.60-101.62",
+                    observed=f"'{claim}' claimed but {nutrient} = {amount:g}",
+                    expected=f"{nutrient} < {limit:g} for '{claim}'",
+                    correction="remove the claim or reformulate",
+                ))
+            continue
         if c in CLAIM_MAX:
             nutrient = CLAIM_RULES[c]
             amount = nutrient_value(nf, nutrient)
@@ -296,6 +316,15 @@ def _check_claims(label: Label) -> list[Violation]:
     return _claim_violations(label.printed_claims, label.true.nutrients)
 
 
+def _health_claim_eligible(key: str, nf: NutritionFacts) -> bool:
+    """101.72 requires 'high' calcium (≥20% DV); 101.74 requires low sodium."""
+    if key == "calcium and osteoporosis":
+        return percent_dv(nf.calcium_mg, "calcium") >= 20.0
+    if key == "sodium and hypertension":
+        return nf.sodium_mg <= 140.0
+    return True
+
+
 def _check_health_claims(label: Label) -> list[Violation]:
     out: list[Violation] = []
     for hc in label.printed_health_claims:
@@ -308,6 +337,16 @@ def _check_health_claims(label: Label) -> list[Violation]:
                 observed=f"health claim '{hc}' not on the authorized list",
                 expected="only claims in 21 CFR 101.72-101.83 are authorized",
                 correction="remove or qualify the health claim",
+            ))
+            continue
+        if not _health_claim_eligible(key, label.true.nutrients):
+            out.append(Violation(
+                type=ViolationType.HEALTH_CLAIM,
+                severity=Severity.CRITICAL,
+                cfr=AUTHORIZED_HEALTH_CLAIMS[key],
+                observed=f"health claim '{hc}' printed but product fails qualifying criteria",
+                expected="product must meet the claim's nutrient conditions",
+                correction="remove the claim or reformulate",
             ))
     return out
 

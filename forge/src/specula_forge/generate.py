@@ -49,6 +49,7 @@ ALLERGEN_TOKENS: dict[str, str] = {
 
 VALID_CLAIMS = [
     "low fat", "low sodium", "low cholesterol", "low saturated fat", "low calorie",
+    "fat free", "sugar free", "sodium free", "very low sodium",
     "good source of calcium", "good source of iron", "good source of fiber",
     "high in vitamin d", "excellent source of potassium",
 ]

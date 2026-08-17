@@ -2,10 +2,18 @@
 
 import random
 
-from specula_forge.generate import _copy_nf, _pick_facts, task
-from specula_forge.schema import NutritionFacts, ProductFacts, ViolationType
+from specula_forge.generate import (
+    VALID_CLAIMS,
+    _copy_nf,
+    _ingredient_groups,
+    _pick_facts,
+    generate_label,
+    task,
+)
+from specula_forge.schema import Label, NutritionFacts, ProductFacts, ViolationType
 from specula_forge.verify import (
     DV_REF,
+    _claim_violations,
     oracle_gate,
     percent_dv,
     rounded_dv,
@@ -148,3 +156,85 @@ def test_dv_ref_total_sugars_is_nonstatutory_alias():
     # Recorded, not a (c)(9) row: total sugars has no statutory Daily Value.
     # Convenience alias of the added-sugars DRV; unused by _declare_dv.
     assert DV_REF["total_sugars"] == DV_REF["added_sugars"] == 50.0
+
+
+def _nf(**overrides) -> NutritionFacts:
+    base = dict(
+        serving_size_household="1 cup (245 g)", serving_size_grams=245.0,
+        servings_per_container=2.0, calories=100.0,
+    )
+    base.update(overrides)
+    return NutritionFacts(**base)
+
+
+def _label(true_nf: NutritionFacts, **kwargs) -> Label:
+    facts = ProductFacts(
+        category="soup_ready_to_serve",
+        racc_household="1 cup (245 g)", racc_grams=245.0, serving_grams=245.0,
+        ingredients=kwargs.pop("ingredients", ["water", "salt"]),
+        allergens_present=kwargs.pop("allergens_present", []),
+        nutrients=true_nf,
+    )
+    kwargs.setdefault("statement_of_identity", "Soup")
+    kwargs.setdefault("net_quantity", "Net Wt 12 oz (340 g)")
+    return Label(
+        id="fix", product_name="Soup", product_category="soup_ready_to_serve",
+        printed=true_nf, true=facts, **kwargs,
+    )
+
+
+def test_low_fat_threshold_inclusive():
+    assert _claim_violations(["low fat"], _nf(total_fat_g=3.0)) == []
+    assert _claim_violations(["low fat"], _nf(total_fat_g=3.1))
+
+
+def test_free_and_very_low_claim_thresholds():
+    assert _claim_violations(["fat free"], _nf(total_fat_g=0.4)) == []
+    assert _claim_violations(["fat free"], _nf(total_fat_g=0.5))
+    assert _claim_violations(["sugar free"], _nf(total_sugars_g=0.4)) == []
+    assert _claim_violations(["sugar free"], _nf(total_sugars_g=0.5))
+    assert _claim_violations(["sodium free"], _nf(sodium_mg=4.0)) == []
+    assert _claim_violations(["sodium free"], _nf(sodium_mg=5.0))
+    assert _claim_violations(["very low sodium"], _nf(sodium_mg=35.0)) == []
+    assert _claim_violations(["very low sodium"], _nf(sodium_mg=36.0))
+
+
+def test_unrecognized_claim_still_101_13b():
+    vs = _claim_violations(["keto approved"], _nf())
+    assert vs and vs[0].cfr == "21 CFR 101.13(b)"
+
+
+def test_valid_claims_include_free_and_very_low():
+    for c in ("fat free", "sugar free", "sodium free", "very low sodium"):
+        assert c in VALID_CLAIMS
+
+
+def test_health_claim_calcium_requires_high_calcium():
+    low = _label(_nf(calcium_mg=100.0), printed_health_claims=["calcium and osteoporosis"])
+    high = _label(_nf(calcium_mg=260.0), printed_health_claims=["calcium and osteoporosis"])
+    assert {v.type for v in verify(low).violations} == {ViolationType.HEALTH_CLAIM}
+    assert ViolationType.HEALTH_CLAIM not in {v.type for v in verify(high).violations}
+
+
+def test_health_claim_sodium_requires_low_sodium():
+    high_na = _label(_nf(sodium_mg=200.0), printed_health_claims=["sodium and hypertension"])
+    low_na = _label(_nf(sodium_mg=140.0), printed_health_claims=["sodium and hypertension"])
+    assert {v.type for v in verify(high_na).violations} == {ViolationType.HEALTH_CLAIM}
+    assert ViolationType.HEALTH_CLAIM not in {v.type for v in verify(low_na).violations}
+
+
+def test_unauthorized_health_claim_still_fires():
+    label = _label(_nf(), printed_health_claims=["cures heart disease with daily consumption"])
+    assert {v.type for v in verify(label).violations} == {ViolationType.HEALTH_CLAIM}
+
+
+def test_corn_flour_is_not_wheat():
+    assert "wheat" not in _ingredient_groups(["corn flour"])
+    assert "wheat" in _ingredient_groups(["whole wheat flour"])
+
+
+def test_hand_built_one_label_per_class():
+    rng = random.Random(0)
+    for vt in ViolationType:
+        label = generate_label(rng, "yogurt", [vt], 0.3)
+        assert {v.type for v in verify(label).violations} == {vt}, vt
