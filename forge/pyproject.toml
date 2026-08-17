@@ -1,7 +1,7 @@
 [project]
-name = "labelforge-forge"
+name = "plumb-forge"
 version = "0.1.0"
-description = "Labelforge: seeded label generator + CFR verifier-as-oracle + benchmark"
+description = "Plumb: seeded label generator + CFR verifier-as-oracle + benchmark"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",

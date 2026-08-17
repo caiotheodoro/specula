@@ -2,10 +2,10 @@
 
 import random
 
-from labelforge_forge import contamination, generate
-from labelforge_forge.schema import Verdict, Violation, ViolationType
-from labelforge_forge.score import class_recall, score_predictions, summarize
-from labelforge_forge.verify import oracle_gate, verify
+from plumb_forge import contamination, generate
+from plumb_forge.schema import Verdict, Violation, ViolationType
+from plumb_forge.score import class_recall, score_predictions, summarize
+from plumb_forge.verify import oracle_gate, verify
 
 
 def test_render_is_deterministic_png():

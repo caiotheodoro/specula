@@ -1,4 +1,4 @@
-# Labelforge — Decision Log
+# Plumb — Decision Log
 
 Every architectural decision is recorded here with rationale and evidence.
 Agents append entries as they make decisions (format below). The P1 oracle

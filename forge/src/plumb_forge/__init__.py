@@ -1,4 +1,4 @@
-"""Labelforge forge package.
+"""Plumb forge package.
 
 Seeded synthetic label generator + CFR verifier-as-oracle + contamination
 monitor + golden benchmark. Contracts in ../CONTRACTS.md.

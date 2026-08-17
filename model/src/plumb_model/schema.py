@@ -1,4 +1,4 @@
-"""Model-output contract for Labelforge. Mirrors forge Verdict (camelCase).
+"""Model-output contract for Plumb. Mirrors forge Verdict (camelCase).
 
 The worker emits exactly this JSON (no thinking block in the answer, per
 CONTRACTS.md §6). `parse` is the canonical JSON parser used by every eval.

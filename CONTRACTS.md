@@ -1,6 +1,6 @@
-# Labelforge — Benchmark & Scoring Contracts (FIXED)
+# Plumb — Benchmark & Scoring Contracts (FIXED)
 
-These are the fixed contracts of the Labelforge benchmark. Changes require a
+These are the fixed contracts of the Plumb benchmark. Changes require a
 DECISIONS.md entry with measured evidence. The generator, verifier, scorer,
 contamination monitor, and eval harness all conform to this file.
 
@@ -62,7 +62,7 @@ oracle violation; unmatched = false positive).
 
 ## 3. Oracle (verifier-as-oracle)
 
-The oracle is the deterministic rule engine `labelforge_forge.verify`.
+The oracle is the deterministic rule engine `plumb_forge.verify`.
 Given the label's structured ground-truth fields, it recomputes every
 violation independently of the model. The generator injects violations from
 real patterns and runs every candidate task through the oracle with a

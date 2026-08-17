@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import modal
 
-app = modal.App("labelforge-rlvr")
-vol = modal.Volume.from_name("labelforge-checkpoints", create_if_missing=True)
+app = modal.App("plumb-rlvr")
+vol = modal.Volume.from_name("plumb-checkpoints", create_if_missing=True)
 image = modal.Image.from_dockerfile("Dockerfile")
 GPU_L4 = modal.gpu.L4(count=1)
 
