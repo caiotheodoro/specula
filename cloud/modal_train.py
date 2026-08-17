@@ -25,41 +25,59 @@ from specula_model.train_config import dummy_sft_records, trainer_kwargs
 
 app = modal.App("specula-train")
 vol = modal.Volume.from_name("specula-checkpoints", create_if_missing=True)
+hf_cache = modal.Volume.from_name("specula-hf-cache", create_if_missing=True)
 image = modal.Image.from_dockerfile("Dockerfile").add_local_python_source(
     "specula_model"
 )
 
-GPU_L4 = modal.gpu.L4(count=1)
 
-
-@app.function(image=image, gpu=GPU_L4, volumes={"/checkpoints": vol},
-              timeout=60 * 60 * 6)
+@app.function(
+    image=image,
+    gpu="L4",
+    volumes={"/checkpoints": vol, "/root/.cache/huggingface": hf_cache},
+    timeout=60 * 60 * 6,
+)
 def train(data: bytes, smoke: bool = False, epochs: int = 2) -> str:
-    from transformers import AutoProcessor, AutoModelForMultimodalLM
+    from datasets import Dataset
+    from transformers import AutoModelForMultimodalLM, BitsAndBytesConfig
     from peft import LoraConfig, get_peft_model
     from trl import SFTTrainer, SFTConfig
 
     kw = trainer_kwargs(smoke=smoke, epochs=epochs)
     # Wave 0a: dummy records only; JSONL parse of `data` is a later slice.
     records = dummy_sft_records()
+    if smoke:
+        records = records * 16
+    bnb = BitsAndBytesConfig(
+        load_in_4bit=kw["load_in_4bit"],
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype="bfloat16",
+        bnb_4bit_use_double_quant=True,
+    )
     model = AutoModelForMultimodalLM.from_pretrained(
-        "Qwen/Qwen3.8-27B", device_map="auto", torch_dtype="bfloat16",
-        load_in_4bit=kw["load_in_4bit"])
-    lora = LoraConfig(r=32, lora_alpha=64, lora_dropout=0.05,
+        "Qwen/Qwen3.8-27B", device_map="auto", dtype="bfloat16",
+        quantization_config=bnb)
+    model.config.use_cache = False
+    lora = LoraConfig(r=8 if smoke else 32, lora_alpha=16 if smoke else 64,
+                      lora_dropout=0.05,
                       target_modules="all-linear", task_type="CAUSAL_LM")
     model = get_peft_model(model, lora)
     cfg = SFTConfig(
-        output_dir=kw["output_dir"], max_seq_length=kw["max_seq_length"],
+        output_dir=kw["output_dir"], max_length=kw["max_seq_length"],
         per_device_train_batch_size=kw["per_device_train_batch_size"],
         gradient_accumulation_steps=kw["gradient_accumulation_steps"],
         gradient_checkpointing=kw["gradient_checkpointing"], bf16=kw["bf16"],
-        logging_steps=10, num_train_epochs=kw["num_train_epochs"],
-        max_steps=kw["max_steps"],
+        logging_steps=1, num_train_epochs=kw["num_train_epochs"],
+        max_steps=kw["max_steps"], report_to="none",
+        loss_type=kw["loss_type"],
     )
-    trainer = SFTTrainer(model=model, args=cfg, train_dataset=records)
+    trainer = SFTTrainer(
+        model=model, args=cfg, train_dataset=Dataset.from_list(records),
+    )
     trainer.train()
     trainer.save_model("/checkpoints/sft-final")
     vol.commit()
+    hf_cache.commit()
     return "done"
 
 

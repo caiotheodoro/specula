@@ -11,6 +11,16 @@ RUN pip install --no-cache-dir \
     "accelerate>=1.0" "datasets>=3.0" "pillow>=11" "huggingface_hub>=0.26" \
     "bitsandbytes>=0.44"
 
+# Modal inspects `python` on PATH; Ubuntu 22.04 only ships python3/pip3.
+RUN ln -sf /usr/bin/python3 /usr/bin/python && ln -sf /usr/bin/pip3 /usr/bin/pip
+
+# Qwen3 VL AutoProcessor imports Qwen3VLVideoProcessor → needs torchvision.
+RUN pip install --no-cache-dir torchvision
+
+# Triton JIT-compiles cuda_utils.c on first forward; needs Python.h.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-dev build-essential && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 
 CMD ["python3", "-c", "print('specula-train-image-ok')"]

@@ -32,15 +32,18 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   and OCR/rotation/glare. `--mix openfda` uses a static class-weight fixture.
 - **P3**: dataset builder has a CLI; eval uses SYSTEM_PROMPT + real pixels +
   resumable JSONL + oracle-mock; citation exact-match is scored. Modal smoke
-  path is 4-bit + dummy records + `max_steps=4` — **not yet run on GPU**.
+  path ran on Modal L4: 4 optimizer steps, train_loss 3.279, checkpoint
+  `/checkpoints/sft-final` on volume `specula-checkpoints`
+  (run ap-i2MSEyzsNuWHLUX35f9srK).
 - **Verified green**: `make validate` (39 forge + 13 model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
 ## Next actions
 
-1. **P3 smoke**: `modal run cloud/modal_train.py --smoke` (≪1 GPU-hr). This
-   still gates all four forge repos. Do not start full SFT until it steps.
+1. **P3 full SFT**: wire `--data` JSONL (still dummy records today), then
+   `modal run cloud/modal_train.py --epochs 2 --data forge/data/train.jsonl`.
+   Do not mix RLVR into SFT.
 2. Wire a real provider adapter into `benchmark_eval._predict_one` (local
    vLLM/MLX or frontier API) for head-to-head.
 

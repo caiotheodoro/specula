@@ -94,3 +94,18 @@ CONTRACTS.md; revise only with measured evidence.
 - Rationale: wrong DVs would silently poison DV_ERROR, source-claim %DV, and healthy/FOP limits while the oracle gate still passed.
 - Evidence: Cornell LII eCFR text of 21 CFR 101.9 fetched 2026-08-17 (eCFR.gov HTML was CAPTCHA-blocked); forge test_dv_ref_matches_101_9_tables.
 - Alternatives rejected: adding optional (c)(8)(iv) vitamins to NutritionFacts; deleting total_sugars from DV_REF in this pass.
+
+## 2026-08-17 — P3 — Modal smoke LoRA on Qwen3.8-27B (L4)
+- Decision: keep Qwen/Qwen3.8-27B 4-bit QLoRA on Modal L4. Smoke uses
+  `loss_type=nll`, `max_length=256`, LoRA r=8, torchvision + python3-dev
+  in the image, and a `specula-hf-cache` volume. Full runs stay 4-bit
+  with `max_length=1024` and LoRA r=32.
+- Rationale: first GPU attempts failed on (1) Modal needing `python` on
+  PATH, (2) Qwen3 VL AutoProcessor needing torchvision, (3) Triton JIT
+  needing Python.h, (4) TRL default `chunked_nll` upcasting the 248k
+  lm_head to fp32 (~4.7 GiB) which is incompatible with PEFT+VLM on 24GB.
+  Standard `nll` at 256 tokens completed 4/4 steps.
+- Evidence: `modal run cloud/modal_train.py --smoke` exit 0,
+  ap-i2MSEyzsNuWHLUX35f9srK, train_loss 3.279, 4 steps in 60s GPU.
+- Alternatives rejected: Qwen3.8-27B-FP8 (not needed; 4-bit loaded);
+  keeping chunked_nll (OOM); max_length 4096 on L4 (CE/activation wall).
