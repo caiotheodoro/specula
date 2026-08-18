@@ -45,20 +45,22 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   thinking filled max_completion. Real-prompt GRPO with
   `chat_template_kwargs.enable_thinking=False` parses JSON (sample PASS),
   G=2, 256px thumbs, max_completion 128. 8-step probe
-  ap-gsQ5DepGTEmt48N6vzN7Go: train_loss −0.01694, reward mean moved
-  (−0.5 … 0.45), clipped_ratio down to 0. 200-step marathon is running on
-  Modal (GCP `GPUS_ALL_REGIONS=0`). Do not mix RLVR into SFT.
+  ap-gsQ5DepGTEmt48N6vzN7Go: train_loss −0.01694. 200-step marathon
+  ap-KPhkoGctwFnaHRR6kMwi5z finished 200/200, train_runtime 7787s
+  (~2.2h GPU), train_loss −0.002308, checkpoint `/checkpoints/rlvr-final`.
+  Late steps often `frac_reward_zero_std=1` with 11–14 token JSON — group
+  advantages collapsed. GCP still `GPUS_ALL_REGIONS=0`. Do not mix RLVR into SFT.
 - **Verified green**: `make validate` (forge + model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
 ## Next actions
 
-1. **P4 marathon**: 200-step Modal GRPO is in flight (G=2, 204 real
-   prompts). Request GCP `GPUS_ALL_REGIONS` > 0 before `gcp_spot.sh` can
-   launch an L4. G=4 VL still likely OOMs on 24GB.
-2. **P6 head-to-head**: set `SPECULA_LLM_BASE_URL` and fill
-   `docs/BENCHMARK.md`. Serve `/checkpoints/sft-final` (now VL).
+1. **P6 head-to-head**: serve `/checkpoints/rlvr-final` (and SFT as
+   baseline), set `SPECULA_LLM_BASE_URL`, fill `docs/BENCHMARK.md`.
+2. **GCP**: request `GPUS_ALL_REGIONS` > 0 if a longer GRPO/self-play
+   marathon should leave Modal. Dynamic sampling of zero-std groups is
+   still unbuilt (`frac_reward_zero_std` went to 1 late in this run).
 
 ## Bootstrap (fresh agent)
 

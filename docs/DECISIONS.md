@@ -184,3 +184,15 @@ CONTRACTS.md; revise only with measured evidence.
 - Alternatives rejected: burning 200 steps at reward −1; G=4 on L4
   (OOM wall); filing a quota ticket in this loop (needs a human in the
   GCP console).
+
+## 2026-08-18 — P4 — 200-step VL GRPO finished on Modal L4
+- Decision: treat `/checkpoints/rlvr-final` as the RLVR adapter for P6.
+  Report saturation honestly: late-run `frac_reward_zero_std=1` and
+  11–14 token completions mean group-relative advantage often vanished.
+- Rationale: 200 steps on 204 real prompts (~3.9 epochs) completed without
+  OOM at G=2. Train loss −0.002308 is not a quality claim; P6 oracle
+  eval vs SFT and vs frontier is the measurement.
+- Evidence: ap-KPhkoGctwFnaHRR6kMwi5z exit 0, 200/200, train_runtime
+  7787s, last-step reward 0.1 (std 0.56, frac_zero_std 1).
+- Alternatives rejected: calling this a solved reviewer without a
+  benchmark pass; immediately bumping G on L4.
