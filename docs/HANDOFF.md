@@ -41,20 +41,22 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   hook. Prompts from `dataset_builder --rlvr-out` have no assistant gold;
   SFT JSONL is rejected. `modal_rlvr.py` runs 4-bit Dr. GRPO + DAPO clip
   (`epsilon=0.2`, `epsilon_high=1.0`) from `/checkpoints/sft-final`.
-  Smoke ran on Modal L4: 2/2 steps, train_runtime 50s, checkpoint
-  `/checkpoints/rlvr-final` (ap-pES3JzaVBU18Qyp3SA0VDx). Dummy 1x1 PNG +
-  clipped 64-token completions all scored reward −1 (unparseable); that
-  proves the loop, not learning. Marathon: `cloud/gcp_spot.sh` with real
-  `--rlvr-out` prompts. Do not mix RLVR into SFT.
+  Dummy smoke (ap-pES3JzaVBU18Qyp3SA0VDx) was all reward −1 because Qwen3
+  thinking filled max_completion. Real-prompt GRPO with
+  `chat_template_kwargs.enable_thinking=False` parses JSON (sample PASS),
+  G=2, 256px thumbs, max_completion 128. 8-step probe
+  ap-gsQ5DepGTEmt48N6vzN7Go: train_loss −0.01694, reward mean moved
+  (−0.5 … 0.45), clipped_ratio down to 0. 200-step marathon is running on
+  Modal (GCP `GPUS_ALL_REGIONS=0`). Do not mix RLVR into SFT.
 - **Verified green**: `make validate` (forge + model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
 ## Next actions
 
-1. **P4 marathon**: build `dataset_builder --rlvr-out` from train.jsonl,
-   then `SMOKE=0 GROUP_SIZE=4 ITERS=200 ./cloud/gcp_spot.sh` after copying
-   `sft-final` onto the VM. L4 G=8 VL may OOM; keep G=2–4 on 24GB.
+1. **P4 marathon**: 200-step Modal GRPO is in flight (G=2, 204 real
+   prompts). Request GCP `GPUS_ALL_REGIONS` > 0 before `gcp_spot.sh` can
+   launch an L4. G=4 VL still likely OOMs on 24GB.
 2. **P6 head-to-head**: set `SPECULA_LLM_BASE_URL` and fill
    `docs/BENCHMARK.md`. Serve `/checkpoints/sft-final` (now VL).
 

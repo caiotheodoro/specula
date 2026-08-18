@@ -42,10 +42,10 @@ image = (
     image=image,
     gpu="L4",
     volumes={"/checkpoints": vol, "/root/.cache/huggingface": hf_cache},
-    timeout=60 * 60 * 6,
+    timeout=60 * 60 * 12,
 )
 def rlvr(prompts: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-final",
-         iters: int = 200, group_size: int = 8) -> str:
+         iters: int = 200, group_size: int = 2) -> str:
     import sys as _sys
     if "/opt/forge-src" not in _sys.path:
         _sys.path.insert(0, "/opt/forge-src")
@@ -59,7 +59,7 @@ def rlvr(prompts: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-f
 
 @app.local_entrypoint()
 def main(smoke: bool = False, prompts: str = "", adapter: str = "/checkpoints/sft-final",
-         iters: int = 200, group_size: int = 8) -> None:
+         iters: int = 200, group_size: int = 2) -> None:
     blob = Path(prompts).read_bytes() if prompts else b""
     print(rlvr.remote(blob, smoke=smoke, adapter=adapter, iters=iters,
                       group_size=group_size))

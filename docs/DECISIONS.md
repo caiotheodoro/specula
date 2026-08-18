@@ -167,3 +167,20 @@ CONTRACTS.md; revise only with measured evidence.
   full bf16 28B on L4; putting citation exact-match in the reward; cloning
   GitHub from `gcp_spot.sh` (this branch is unpushed; the old script also
   called a missing `specula_model.train` and installed flash-attn/vllm).
+
+## 2026-08-18 — P4 — GCP GPU quota is zero; marathon stays on Modal
+- Decision: do not wait on GCP for this GRPO marathon. Run 4-bit VL GRPO
+  on Modal L4 with G=2, 256px thumbs, max_completion 128, and
+  `chat_template_kwargs={"enable_thinking": False}`.
+- Rationale: `gcloud compute instances create` on
+  `your-gcp-project` fails with Quota `GPUS_ALL_REGIONS` exceeded
+  (limit 0 globally) even though regional `NVIDIA_L4_GPUS=1`. A first
+  real-prompt run without thinking-off filled 256 tokens, scored reward
+  −1, and left ~5MB free VRAM. Disabling thinking made completions
+  terminate as JSON (sample `{"verdict":"PASS","violations":[]}`).
+- Evidence: quota error from account `you@example.com`;
+  8-step probe ap-gsQ5DepGTEmt48N6vzN7Go exit 0, train_runtime 446.7s,
+  train_loss −0.01694, reward std up to 0.93.
+- Alternatives rejected: burning 200 steps at reward −1; G=4 on L4
+  (OOM wall); filing a quota ticket in this loop (needs a human in the
+  GCP console).

@@ -5,6 +5,11 @@
 #   ./cloud/gcp_spot.sh              # 2-step smoke on the VM
 #   SMOKE=0 GROUP_SIZE=4 ITERS=200 ./cloud/gcp_spot.sh
 #
+# BLOCKED 2026-08-18: project your-gcp-project has GPUS_ALL_REGIONS=0
+# (regional NVIDIA_L4_GPUS=1 is not enough). Instance create fails with
+# Quota 'GPUS_ALL_REGIONS' exceeded. Limit: 0.0 globally.
+# Request a GPUS_ALL_REGIONS increase before this script can launch an L4.
+#
 # Prereq: gcloud account you@example.com, project
 # your-gcp-project, Compute API enabled. Copy /checkpoints/sft-final
 # onto the VM (Modal volume) before a full run; smoke can start a fresh LoRA.
@@ -17,7 +22,7 @@ MACHINE=${GCP_MACHINE:-n1-standard-4}
 NAME=${GCP_NAME:-specula-rlvr-$(date +%m%d-%H%M)}
 SMOKE=${SMOKE:-1}
 ITERS=${ITERS:-200}
-GROUP_SIZE=${GROUP_SIZE:-4}
+GROUP_SIZE=${GROUP_SIZE:-2}
 PROMPTS=${PROMPTS:-}
 ADAPTER=${ADAPTER:-/opt/specula-ckpts/sft-final}
 

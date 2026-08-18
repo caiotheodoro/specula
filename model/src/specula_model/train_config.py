@@ -107,7 +107,7 @@ def sft_records_from_bytes(data: bytes) -> list[dict]:
 RLVR_SMOKE_MAX_STEPS = 2
 
 
-def grpo_kwargs(smoke: bool, iters: int = 200, group_size: int = 8) -> dict:
+def grpo_kwargs(smoke: bool, iters: int = 200, group_size: int = 2) -> dict:
     """Dr. GRPO + DAPO decoupled clip. Batch size must divide by G."""
     g = 2 if smoke else group_size
     return {
@@ -121,11 +121,13 @@ def grpo_kwargs(smoke: bool, iters: int = 200, group_size: int = 8) -> dict:
         "gradient_checkpointing": True,
         "bf16": True,
         "max_steps": RLVR_SMOKE_MAX_STEPS if smoke else iters,
-        "max_completion_length": 64 if smoke else 256,
+        "max_completion_length": 64 if smoke else 128,
         "max_prompt_length": 256 if smoke else 512,
         "output_dir": "/checkpoints/rlvr",
         "scale_rewards": False,
         "remove_unused_columns": False,
+        "mask_truncated_completions": True,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
 
 

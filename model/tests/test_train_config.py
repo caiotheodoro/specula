@@ -102,6 +102,8 @@ def test_smoke_grpo_kwargs_are_dr_grpo_with_dapo_clip():
     assert kwargs["max_steps"] == 2
     assert kwargs["load_in_4bit"] is True
     assert kwargs["max_completion_length"] <= 64
+    assert kwargs["mask_truncated_completions"] is True
+    assert kwargs["chat_template_kwargs"]["enable_thinking"] is False
 
 
 def test_full_grpo_kwargs_honor_iters_and_group_size():
@@ -110,6 +112,12 @@ def test_full_grpo_kwargs_honor_iters_and_group_size():
     assert kwargs["num_generations"] == 4
     assert kwargs["max_steps"] == 50
     assert kwargs["per_device_train_batch_size"] % 4 == 0
+
+
+def test_full_grpo_defaults_to_group_size_two_for_l4():
+    kwargs = grpo_kwargs(smoke=False)
+    assert kwargs["num_generations"] == 2
+    assert kwargs["per_device_train_batch_size"] % 2 == 0
 
 
 def test_dummy_rlvr_records_have_no_assistant_gold():

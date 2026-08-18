@@ -30,7 +30,7 @@ def _with_pil_images(records: list[dict]) -> list[dict]:
                 img = Image.open(BytesIO(base64.b64decode(item))).convert("RGB")
             else:
                 img = item
-            img.thumbnail((384, 384))
+            img.thumbnail((256, 256))
             pil.append(img)
         rec["images"] = pil
         out.append(rec)
@@ -38,7 +38,7 @@ def _with_pil_images(records: list[dict]) -> list[dict]:
 
 
 def run_grpo(data: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-final",
-             iters: int = 200, group_size: int = 8,
+             iters: int = 200, group_size: int = 2,
              checkpoint_dir: str = "/checkpoints") -> str:
     from datasets import Dataset
     from peft import LoraConfig, PeftModel, get_peft_model
@@ -75,16 +75,26 @@ def run_grpo(data: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-
     if hasattr(model, "enable_input_require_grads"):
         model.enable_input_require_grads()
     processor = AutoProcessor.from_pretrained("Qwen/Qwen3.8-27B")
+    tok = getattr(processor, "tokenizer", processor)
+    eos_id = getattr(tok, "eos_token_id", None)
+    pad_id = getattr(tok, "pad_token_id", None) or eos_id
+    if hasattr(model, "generation_config"):
+        if eos_id is not None:
+            model.generation_config.eos_token_id = eos_id
+        if pad_id is not None:
+            model.generation_config.pad_token_id = pad_id
     import dataclasses
     accepted = {f.name for f in dataclasses.fields(GRPOConfig)}
     cfg_kw = grpo_trainer_kwargs(kw, accepted)
-    cfg_kw.update({
+    extra = {
         "output_dir": out_dir,
         "logging_steps": 1,
         "report_to": "none",
-        "temperature": 0.9,
+        "temperature": 0.7,
         "save_steps": max(kw["max_steps"], 1) if smoke else 20,
-    })
+        "generation_kwargs": {"eos_token_id": eos_id, "pad_token_id": pad_id},
+    }
+    cfg_kw.update({k: v for k, v in extra.items() if k in accepted or k == "output_dir"})
     cfg = GRPOConfig(**{k: v for k, v in cfg_kw.items() if k in accepted or k == "output_dir"})
     trainer = GRPOTrainer(
         model=model,
@@ -104,7 +114,7 @@ def main() -> None:
                     help="RLVR prompt JSONL (not SFT traces)")
     ap.add_argument("--adapter", default="/checkpoints/sft-final")
     ap.add_argument("--iters", type=int, default=200)
-    ap.add_argument("--group-size", type=int, default=8)
+    ap.add_argument("--group-size", type=int, default=2)
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--checkpoint-dir", default="/checkpoints")
     args = ap.parse_args()
