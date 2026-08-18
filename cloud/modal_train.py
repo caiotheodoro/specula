@@ -26,7 +26,8 @@ from specula_model.train_config import sft_records_from_bytes, trainer_kwargs
 app = modal.App("specula-train")
 vol = modal.Volume.from_name("specula-checkpoints", create_if_missing=True)
 hf_cache = modal.Volume.from_name("specula-hf-cache", create_if_missing=True)
-image = modal.Image.from_dockerfile("Dockerfile").add_local_python_source(
+_DOCKER = Path(__file__).resolve().parent / "Dockerfile"
+image = modal.Image.from_dockerfile(str(_DOCKER)).add_local_python_source(
     "specula_model"
 )
 

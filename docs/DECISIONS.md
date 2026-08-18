@@ -109,3 +109,21 @@ CONTRACTS.md; revise only with measured evidence.
   ap-i2MSEyzsNuWHLUX35f9srK, train_loss 3.279, 4 steps in 60s GPU.
 - Alternatives rejected: Qwen3.8-27B-FP8 (not needed; 4-bit loaded);
   keeping chunked_nll (OOM); max_length 4096 on L4 (CE/activation wall).
+
+## 2026-08-17 — P3 — Full SFT on Modal; GCP is the marathon wallet
+- Decision: run this SFT on Modal L4, not GCP. Keep GCP $300 credits
+  for P4+ GRPO/self-play. Do not use `gcp_spot.sh` as-is.
+- Rationale: smoke already proved 4-bit Qwen3.8-27B on Modal; HF cache
+  and the train image were warm. 204×2 epochs is ~26 min GPU (~$0.35
+  at $0.80/hr L4), well inside the $30 credit. GCP spot L4 is cheaper
+  per hour (~$0.40–$0.56) but `gcp_spot.sh` clones GitHub, installs
+  unused flash-attn/unsloth/vllm, and calls a missing
+  `specula_model.train` module. First GCP boot would also re-download
+  28B weights and can be preempted. $300 GCP is the right budget for
+  15–40 GPU-hr RLVR, not for a sub-hour SFT.
+- Evidence: `modal run cloud/modal_train.py --epochs 2 --data forge/data/train.jsonl`
+  exit 0, ap-whNEgDfAuVtv68Dss3aSkC, 102/102 steps, train_loss 0.443,
+  train_runtime 1569s. Loss 4.1 → 0.02 on text-only JSON is expected
+  memorization on n=204, not a VL result.
+- Alternatives rejected: jumping to GCP for this run; on-demand G2
+  (~$1.00/hr, more expensive than Modal for a short job).

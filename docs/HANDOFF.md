@@ -32,22 +32,23 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   and OCR/rotation/glare. `--mix openfda` uses a static class-weight fixture.
 - **P3**: dataset builder has a CLI; eval uses SYSTEM_PROMPT + real pixels + OpenAI-compat provider +
   resumable JSONL + oracle-mock; citation exact-match is scored. Modal smoke
-  path ran on Modal L4: 4 optimizer steps, train_loss 3.279, checkpoint
-  `/checkpoints/sft-final` on volume `specula-checkpoints`
-  (run ap-i2MSEyzsNuWHLUX35f9srK).
+  path ran on Modal L4: 4 optimizer steps, then full SFT on seed-7 train
+  (204 rows, 2 epochs, 102 steps, train_loss 0.443, 26 min GPU,
+  ap-whNEgDfAuVtv68Dss3aSkC). Checkpoint `/checkpoints/sft-final`.
+  Still text-only (no PNG in the chat).
 - **Verified green**: `make validate` (39 forge + 13 model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
 ## Next actions
 
-1. **P3 full SFT**: `--data` now parses Task / builder / TRL JSONL
-   (`sft_records_from_bytes`). Next GPU spend:
-   `modal run cloud/modal_train.py --epochs 2 --data forge/data/train.jsonl`.
-   Still text-only (no PNG in the chat). Do not mix RLVR into SFT.
-2. **P6 head-to-head**: `benchmark_eval` now posts OpenAI-compat chat
-   (PNG data URL) when `SPECULA_LLM_BASE_URL` is set. Point it at vLLM,
-   MLX, or a frontier API and fill `docs/BENCHMARK.md`.
+1. **P4 GRPO**: `cloud/modal_rlvr.py` is still a stub. Use GCP $300
+   (spot L4) for the RLVR marathon; keep Modal for short iteration.
+   Do not mix RLVR data into SFT. `gcp_spot.sh` is not runnable yet.
+2. Put PNGs into SFT chats (dataset_builder shards) before treating
+   this adapter as a VL label reviewer.
+3. **P6 head-to-head**: set `SPECULA_LLM_BASE_URL` and fill
+   `docs/BENCHMARK.md`.
 
 ## Bootstrap (fresh agent)
 
