@@ -24,42 +24,46 @@ def trainer_kwargs(smoke: bool, epochs: int = 2) -> dict:
     }
 
 
-def dummy_sft_records() -> list[dict]:
-    # TRL 1.x conversational LM format (not user_text/assistant_json).
-    assistant = (
-        '{"verdict":"FLAG","violations":[{"type":"ALLERGEN",'
-        '"severity":"CRITICAL","cfr":"FALCPA, 21 CFR 101.4",'
-        '"observed":"milk not declared","expected":"milk must be declared",'
-        '"correction":"declare milk in ingredients or Contains"}]}'
-    )
-    return [
-        {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": (
-                        "Review this food label for FDA compliance. "
-                        "Emit the verdict JSON."
-                    ),
-                },
-                {"role": "assistant", "content": assistant},
-            ],
-        }
-    ]
-
+TINY_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
 
 USER_PROMPT = (
     "Review this food label for FDA compliance. Emit the verdict JSON."
 )
 
 
-def _chat(user: str, assistant: str) -> dict:
+def _chat(user: str, assistant: str, image_b64: str | None = None) -> dict:
+    if image_b64:
+        return {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image"},
+                        {"type": "text", "text": user},
+                    ],
+                },
+                {"role": "assistant", "content": [{"type": "text", "text": assistant}]},
+            ],
+            "images": [image_b64],
+        }
     return {
         "messages": [
             {"role": "user", "content": user},
             {"role": "assistant", "content": assistant},
         ]
     }
+
+
+def dummy_sft_records() -> list[dict]:
+    assistant = (
+        '{"verdict":"FLAG","violations":[{"type":"ALLERGEN",'
+        '"severity":"CRITICAL","cfr":"FALCPA, 21 CFR 101.4",'
+        '"observed":"milk not declared","expected":"milk must be declared",'
+        '"correction":"declare milk in ingredients or Contains"}]}'
+    )
+    return [_chat(USER_PROMPT, assistant, TINY_PNG_B64)]
 
 
 def sft_records_from_bytes(data: bytes) -> list[dict]:
@@ -71,10 +75,19 @@ def sft_records_from_bytes(data: bytes) -> list[dict]:
     for ln in lines:
         obj = json.loads(ln)
         if "messages" in obj:
-            records.append({"messages": obj["messages"]})
+            rec = {"messages": obj["messages"]}
+            if "images" in obj:
+                rec["images"] = obj["images"]
+            elif obj.get("image_b64"):
+                rec["images"] = [obj["image_b64"]]
+            records.append(rec)
             continue
         if "assistant_json" in obj:
-            records.append(_chat(obj.get("user_text") or USER_PROMPT, obj["assistant_json"]))
+            records.append(_chat(
+                obj.get("user_text") or USER_PROMPT,
+                obj["assistant_json"],
+                obj.get("image_b64"),
+            ))
             continue
         if "expected" in obj:
             expected = obj["expected"]
@@ -82,7 +95,7 @@ def sft_records_from_bytes(data: bytes) -> list[dict]:
                 expected if isinstance(expected, str)
                 else json.dumps(expected, separators=(",", ":"))
             )
-            records.append(_chat(USER_PROMPT, assistant))
+            records.append(_chat(USER_PROMPT, assistant, obj.get("image_b64")))
             continue
         raise ValueError(f"unrecognized SFT record keys: {sorted(obj)}")
     return records

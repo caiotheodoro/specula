@@ -33,10 +33,10 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
 - **P3**: dataset builder has a CLI; eval uses SYSTEM_PROMPT + real pixels + OpenAI-compat provider +
   resumable JSONL + oracle-mock; citation exact-match is scored. Modal smoke
   path ran on Modal L4: 4 optimizer steps, then full SFT on seed-7 train
-  (204 rows, 2 epochs, 102 steps, train_loss 0.443, 26 min GPU,
-  ap-whNEgDfAuVtv68Dss3aSkC). Checkpoint `/checkpoints/sft-final`.
-  Still text-only (no PNG in the chat).
-- **Verified green**: `make validate` (39 forge + 13 model). Seed-7 pilot
+  (204 rows, 2 epochs, 102 steps, train_loss 0.443 text-only). Then VL
+  SFT on rendered label PNGs (shard-0000, 102 steps, train_loss 2.366,
+  40 min GPU, ap-asAxCdeOO7cB3q7LBc2LQO). Checkpoint `/checkpoints/sft-final`.
+- **Verified green**: `make validate` (39 forge + 19 model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
@@ -45,10 +45,8 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
 1. **P4 GRPO**: `cloud/modal_rlvr.py` is still a stub. Use GCP $300
    (spot L4) for the RLVR marathon; keep Modal for short iteration.
    Do not mix RLVR data into SFT. `gcp_spot.sh` is not runnable yet.
-2. Put PNGs into SFT chats (dataset_builder shards) before treating
-   this adapter as a VL label reviewer.
-3. **P6 head-to-head**: set `SPECULA_LLM_BASE_URL` and fill
-   `docs/BENCHMARK.md`.
+2. **P6 head-to-head**: set `SPECULA_LLM_BASE_URL` and fill
+   `docs/BENCHMARK.md`. Serve `/checkpoints/sft-final` (now VL).
 
 ## Bootstrap (fresh agent)
 

@@ -127,3 +127,16 @@ CONTRACTS.md; revise only with measured evidence.
   memorization on n=204, not a VL result.
 - Alternatives rejected: jumping to GCP for this run; on-demand G2
   (~$1.00/hr, more expensive than Modal for a short job).
+
+## 2026-08-17 — P3 — VL SFT with label PNGs
+- Decision: SFT chats carry a thumbnail (max 384px) of `render_png` plus
+  the verdict JSON. Dummy/smoke records use a 1x1 PNG so the VL collator
+  is always exercised. Assistant content is typed `[{type:text,...}]` so
+  Arrow does not mix list and string message parts.
+- Rationale: the text-only SFT never saw a label; that adapter cannot be
+  a VL reviewer. Loss 10.86 → 2.366 on n=204 with images is the real
+  cold start; the earlier 0.443 text-only number was JSON memorization.
+- Evidence: VL smoke ap-bGq5nkkTiVPWx8uT9ZWfho exit 0; full VL SFT
+  ap-asAxCdeOO7cB3q7LBc2LQO, 102/102, train_runtime 2419s.
+- Alternatives rejected: keeping text-only SFT as champion; max_length=None
+  (VRAM risk on L4); sending full 600x900 PNGs without thumbnail.

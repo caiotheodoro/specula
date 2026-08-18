@@ -1,3 +1,5 @@
+import json
+
 from specula_model.train_config import (
     SMOKE_MAX_STEPS,
     dummy_sft_records,
@@ -30,8 +32,14 @@ def test_dummy_sft_records_are_trl_conversational():
     for record in records:
         turns = record["messages"]
         assert [turn["role"] for turn in turns] == ["user", "assistant"]
-        assert "FDA" in turns[0]["content"]
-        assert '"verdict"' in turns[1]["content"]
+        user = turns[0]["content"]
+        text = next(part["text"] for part in user if part.get("type") == "text")
+        assert {"type": "image"} in user
+        assert record["images"]
+        assert "FDA" in text
+        asst = turns[1]["content"]
+        assert asst[0]["type"] == "text"
+        assert '"verdict"' in asst[0]["text"]
 
 
 def test_empty_bytes_fall_back_to_dummy_records():
@@ -56,3 +64,22 @@ def test_forge_task_jsonl_uses_expected_verdict():
     records = sft_records_from_bytes(line.encode())
     assert records[0]["messages"][1]["role"] == "assistant"
     assert '"FLAG"' in records[0]["messages"][1]["content"]
+
+
+def test_dataset_builder_jsonl_attaches_vl_image():
+    png_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+    line = json.dumps({
+        "user_text": "Review this food label for FDA compliance. ",
+        "assistant_json": '{"verdict":"PASS","violations":[]}',
+        "image_b64": png_b64,
+    }) + "\n"
+    records = sft_records_from_bytes(line.encode())
+    user = records[0]["messages"][0]["content"]
+    assert {"type": "image"} in user
+    assert any(part.get("type") == "text" and "FDA" in part["text"] for part in user)
+    assert records[0]["images"] == [png_b64]
+    asst = records[0]["messages"][1]["content"]
+    assert asst[0]["type"] == "text"
+    assert '"PASS"' in asst[0]["text"]

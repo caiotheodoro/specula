@@ -32,6 +32,33 @@ image = modal.Image.from_dockerfile(str(_DOCKER)).add_local_python_source(
 )
 
 
+
+def _with_pil_images(records: list[dict]) -> list[dict]:
+    """Decode image_b64 / images strings to RGB PIL, thumbnail for L4 VRAM."""
+    import base64
+    from io import BytesIO
+    from PIL import Image
+
+    out = []
+    for rec in records:
+        rec = dict(rec)
+        items = rec.get("images") or []
+        if not items:
+            out.append(rec)
+            continue
+        pil = []
+        for item in items:
+            if isinstance(item, str):
+                img = Image.open(BytesIO(base64.b64decode(item))).convert("RGB")
+            else:
+                img = item
+            img.thumbnail((384, 384))
+            pil.append(img)
+        rec["images"] = pil
+        out.append(rec)
+    return out
+
+
 @app.function(
     image=image,
     gpu="L4",
@@ -45,7 +72,7 @@ def train(data: bytes, smoke: bool = False, epochs: int = 2) -> str:
     from trl import SFTTrainer, SFTConfig
 
     kw = trainer_kwargs(smoke=smoke, epochs=epochs)
-    records = sft_records_from_bytes(data)
+    records = _with_pil_images(sft_records_from_bytes(data))
     if smoke and len(records) < 16:
         records = (records * 16)[:16]
     bnb = BitsAndBytesConfig(
