@@ -18,6 +18,9 @@ import base64
 from PIL import Image
 from pydantic import BaseModel
 
+from .schema import SYSTEM_PROMPT
+from .train_config import USER_PROMPT
+
 
 class Example(BaseModel):
     image_b64: str
@@ -58,13 +61,54 @@ def build(tasks_jsonl: Path, out_dir: Path, rng_seed: int = 7) -> None:
         print(f"wrote {out} ({len(shard)} examples)")
 
 
+def build_rlvr_prompt(task) -> dict:
+    """Prompt-only record for GRPO. No assistant gold — not an SFT trace."""
+    from specula_forge.generate import render_png
+    img = render_png(task.label)
+    return {
+        "task_id": task.task_id,
+        "prompt": [
+            {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
+            {"role": "user", "content": [
+                {"type": "image"},
+                {"type": "text", "text": USER_PROMPT},
+            ]},
+        ],
+        "images": [_b64(img)],
+        "expected_verdict": task.expected.model_dump_json(),
+    }
+
+
+def build_rlvr_prompts(tasks_path: str, out_path: str) -> int:
+    from specula_forge.schema import Task
+    src = Path(tasks_path)
+    dest = Path(out_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    n = 0
+    with open(dest, "w") as f:
+        for line in src.read_text().splitlines():
+            if not line.strip():
+                continue
+            f.write(json.dumps(build_rlvr_prompt(Task.model_validate_json(line))) + "\n")
+            n += 1
+    return n
+
+
 def main() -> None:
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--tasks-file", required=True)
-    ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--out-dir", default="")
+    ap.add_argument("--rlvr-out", default="",
+                    help="Write prompt-only RLVR JSONL instead of SFT shards")
     ap.add_argument("--seed", type=int, default=7)
     args = ap.parse_args()
+    if args.rlvr_out:
+        n = build_rlvr_prompts(args.tasks_file, args.rlvr_out)
+        print(f"wrote {n} RLVR prompts to {args.rlvr_out}")
+        return
+    if not args.out_dir:
+        ap.error("--out-dir is required unless --rlvr-out is set")
     build(Path(args.tasks_file), Path(args.out_dir), rng_seed=args.seed)
 
 

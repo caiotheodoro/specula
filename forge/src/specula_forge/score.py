@@ -16,12 +16,13 @@ def severity_weight(severity: Severity) -> float:
     return SEVERITY_WEIGHTS[severity]
 
 
-def score_predictions(expected: Verdict, predicted: Verdict) -> dict[str, float]:
+def score_predictions(expected: Verdict, predicted: Verdict | None) -> dict[str, float]:
     """Score one task: returns caught-weight, total-weight, fp count, parsed."""
     parsed = predicted is not None
     if not parsed:
         return {"caught": 0.0, "total": 0.0, "fp": 0.0, "parsed": 0.0,
-                "citation_hits": 0.0, "citation_total": 0.0}
+                "citation_hits": 0.0, "citation_total": 0.0,
+                "verdict_correct": 0.0}
     exp_keys = violation_keys(expected)
     pred_keys = violation_keys(predicted)
     total = sum(severity_weight(s) for _, s in exp_keys)
@@ -36,8 +37,10 @@ def score_predictions(expected: Verdict, predicted: Verdict) -> dict[str, float]
             citation_total += 1.0
             if exp_cfr.get(key) == pred_cfr.get(key):
                 citation_hits += 1.0
+    verdict_correct = 1.0 if predicted.verdict == expected.verdict else 0.0
     return {"caught": caught, "total": total, "fp": fp, "parsed": 1.0,
-            "citation_hits": citation_hits, "citation_total": citation_total}
+            "citation_hits": citation_hits, "citation_total": citation_total,
+            "verdict_correct": verdict_correct}
 
 
 def summarize(results: list[dict[str, float]]) -> dict[str, float]:
@@ -59,7 +62,29 @@ def summarize(results: list[dict[str, float]]) -> dict[str, float]:
         "n_violation_tasks": float(n_violation_tasks),
         "false_positives_per_task": fp / n,
         "citation_exact_match": cit_hits / cit_total if cit_total else 1.0,
+        "verdict_accuracy": sum(r.get("verdict_correct", 0.0) for r in results) / n,
     }
+
+
+
+
+def reward(expected: Verdict, predicted: Verdict | None,
+           fp_penalty: float = 0.3, verdict_bonus: float = 0.2,
+           unparseable_reward: float = -1.0) -> float:
+    """Scalar RLVR reward: severity-weighted recall minus FP penalty.
+
+    Outcome-verifier only (no PRM). Unparseable output scores -1.0. A clean
+    expected PASS has no recall ratio, so it is scored on verdict correctness.
+    Citation exact-match is tracked in score_predictions, not this reward.
+    """
+    r = score_predictions(expected, predicted)
+    if not r["parsed"]:
+        return unparseable_reward
+    if r["total"] == 0.0:
+        return (1.0 if r["verdict_correct"] else -1.0) - fp_penalty * r["fp"]
+    recall = r["caught"] / r["total"]
+    bonus = verdict_bonus if r["verdict_correct"] else -verdict_bonus
+    return recall - fp_penalty * r["fp"] + bonus
 
 
 def class_recall(expected: list[Verdict], predicted: list[Verdict],

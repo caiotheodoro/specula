@@ -140,3 +140,30 @@ CONTRACTS.md; revise only with measured evidence.
   ap-asAxCdeOO7cB3q7LBc2LQO, 102/102, train_runtime 2419s.
 - Alternatives rejected: keeping text-only SFT as champion; max_length=None
   (VRAM risk on L4); sending full 600x900 PNGs without thumbnail.
+
+## 2026-08-18 — P4 — GRPO RLVR against the forge oracle
+- Decision: reward = severity-weighted recall − 0.3·FP + 0.2 verdict bonus
+  (unparseable = −1.0; clean PASS scored on verdict only). Train with TRL
+  `GRPOConfig(loss_type="dr_grpo", epsilon=0.2, epsilon_high=1.0)`, 4-bit
+  QLoRA on the VL SFT adapter. Modal smoke G=2 / 2 steps; GCP spot L4 is
+  the marathon (`gcp_spot.sh` rsyncs this checkout and runs
+  `python -m specula_model.rlvr_train`). RLVR prompts are structurally
+  distinct from SFT traces (no assistant gold); SFT JSONL is rejected.
+- Rationale: methodology §3 (Dr. GRPO, DAPO clip, outcome-verifier only).
+  Citation exact-match stays a report metric, not the RLVR reward, so the
+  policy cannot hack CFR strings. Dynamic zero-variance resampling is not
+  native in GRPOTrainer — monitor `frac_reward_zero_std` rather than
+  subclassing preemptively. Unquantized 28B bf16 (habeas stub) cannot fit
+  L4 24GB next to G completions; keep 4-bit. G=8 on L4 is likely an OOM;
+  smoke G=2, marathon G=4 until an A100 is justified.
+- Evidence: forge `test_score.py` reward cases; model `test_rlvr_reward.py`,
+  `test_train_config.py` GRPO kwargs + SFT-mix rejection; `make validate`.
+  Modal smoke `modal run cloud/modal_rlvr.py --smoke` exit 0,
+  ap-pES3JzaVBU18Qyp3SA0VDx, 2/2 steps, train_runtime 50.11s, reward −1
+  on dummy 1×1 PNG (all completions clipped at 64, frac_reward_zero_std=1).
+  First attempt died on Modal TRL 1.10 dropping `max_prompt_length`;
+  `grpo_trainer_kwargs` now filters unknown fields.
+- Alternatives rejected: mixing train.jsonl SFT traces into GRPO; loading
+  full bf16 28B on L4; putting citation exact-match in the reward; cloning
+  GitHub from `gcp_spot.sh` (this branch is unpushed; the old script also
+  called a missing `specula_model.train` and installed flash-attn/vllm).

@@ -21,6 +21,8 @@ RUN pip install --no-cache-dir torchvision
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev build-essential && rm -rf /var/lib/apt/lists/*
 
+RUN pip install --no-cache-dir "pydantic>=2.7"
+
 COPY . .
 
 CMD ["python3", "-c", "print('specula-train-image-ok')"]

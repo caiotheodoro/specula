@@ -18,7 +18,7 @@ import random
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .schema import SYSTEM_PROMPT, VerdictOut, parse
+from .schema import SYSTEM_PROMPT, VerdictOut, parse, to_forge_verdict
 
 SCORE_MODEL = None  # set by --score-model to use a frontier API for scoring
 
@@ -122,11 +122,7 @@ def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,
 def _to_verdict(p: VerdictOut | None):
     if p is None:
         return None
-    from specula_forge.schema import Verdict, Violation
-    return Verdict(verdict=p.verdict, violations=[
-        Violation(type=v.type, severity=v.severity, cfr=v.cfr,
-                  observed=v.observed, expected=v.expected,
-                  correction=v.correction) for v in p.violations])
+    return to_forge_verdict(p.model_dump_json())
 
 
 def _summarize(results: list[dict]) -> dict:

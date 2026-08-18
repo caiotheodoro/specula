@@ -3,9 +3,15 @@ import json
 from specula_model.train_config import (
     SMOKE_MAX_STEPS,
     dummy_sft_records,
+    grpo_kwargs,
+    grpo_trainer_kwargs,
+    rlvr_records_from_bytes,
     sft_records_from_bytes,
     trainer_kwargs,
 )
+
+import pytest
+
 
 
 def test_smoke_trainer_kwargs_use_4bit_and_capped_steps():
@@ -83,3 +89,54 @@ def test_dataset_builder_jsonl_attaches_vl_image():
     asst = records[0]["messages"][1]["content"]
     assert asst[0]["type"] == "text"
     assert '"PASS"' in asst[0]["text"]
+
+
+
+def test_smoke_grpo_kwargs_are_dr_grpo_with_dapo_clip():
+    kwargs = grpo_kwargs(smoke=True)
+    assert kwargs["loss_type"] == "dr_grpo"
+    assert kwargs["epsilon"] == 0.2
+    assert kwargs["epsilon_high"] == 1.0
+    assert kwargs["num_generations"] == 2
+    assert kwargs["per_device_train_batch_size"] % kwargs["num_generations"] == 0
+    assert kwargs["max_steps"] == 2
+    assert kwargs["load_in_4bit"] is True
+    assert kwargs["max_completion_length"] <= 64
+
+
+def test_full_grpo_kwargs_honor_iters_and_group_size():
+    kwargs = grpo_kwargs(smoke=False, iters=50, group_size=4)
+    assert kwargs["loss_type"] == "dr_grpo"
+    assert kwargs["num_generations"] == 4
+    assert kwargs["max_steps"] == 50
+    assert kwargs["per_device_train_batch_size"] % 4 == 0
+
+
+def test_dummy_rlvr_records_have_no_assistant_gold():
+    records = rlvr_records_from_bytes(b"")
+    assert records
+    for rec in records:
+        roles = [turn["role"] for turn in rec["prompt"]]
+        assert "assistant" not in roles
+        assert "expected_verdict" in rec
+        assert rec["images"]
+
+
+def test_rlvr_records_reject_sft_assistant_json():
+    line = json.dumps({
+        "user_text": "Review this food label",
+        "assistant_json": '{"verdict":"PASS","violations":[]}',
+    }) + "\n"
+    with pytest.raises(ValueError, match="SFT"):
+        rlvr_records_from_bytes(line.encode())
+
+
+def test_grpo_trainer_kwargs_drop_unknown_and_bnb_flag():
+    kw = grpo_kwargs(smoke=True)
+    accepted = {"loss_type", "epsilon", "epsilon_high", "num_generations",
+                "max_completion_length"}
+    out = grpo_trainer_kwargs(kw, accepted)
+    assert "load_in_4bit" not in out
+    assert "max_prompt_length" not in out
+    assert out["loss_type"] == "dr_grpo"
+    assert out["num_generations"] == 2

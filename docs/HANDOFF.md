@@ -18,7 +18,7 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
           HANDOFF.md, methodology.md
 ```
 
-## Status (2026-08-17)
+## Status (2026-08-18)
 
 - **P0 scaffold**: complete — CONTRACTS, README, all packages, cloud, docs.
 - **P1 oracle**: live in `forge/src/specula_forge/verify.py` (printed-vs-true
@@ -36,15 +36,25 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   (204 rows, 2 epochs, 102 steps, train_loss 0.443 text-only). Then VL
   SFT on rendered label PNGs (shard-0000, 102 steps, train_loss 2.366,
   40 min GPU, ap-asAxCdeOO7cB3q7LBc2LQO). Checkpoint `/checkpoints/sft-final`.
-- **Verified green**: `make validate` (39 forge + 19 model). Seed-7 pilot
+- **P4 GRPO**: forge `reward()` is the oracle scalar (recall − FP penalty +
+  verdict bonus). `specula_model.rlvr_reward.oracle_reward_func` is the TRL
+  hook. Prompts from `dataset_builder --rlvr-out` have no assistant gold;
+  SFT JSONL is rejected. `modal_rlvr.py` runs 4-bit Dr. GRPO + DAPO clip
+  (`epsilon=0.2`, `epsilon_high=1.0`) from `/checkpoints/sft-final`.
+  Smoke ran on Modal L4: 2/2 steps, train_runtime 50s, checkpoint
+  `/checkpoints/rlvr-final` (ap-pES3JzaVBU18Qyp3SA0VDx). Dummy 1x1 PNG +
+  clipped 64-token completions all scored reward −1 (unparseable); that
+  proves the loop, not learning. Marathon: `cloud/gcp_spot.sh` with real
+  `--rlvr-out` prompts. Do not mix RLVR into SFT.
+- **Verified green**: `make validate` (forge + model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
 ## Next actions
 
-1. **P4 GRPO**: `cloud/modal_rlvr.py` is still a stub. Use GCP $300
-   (spot L4) for the RLVR marathon; keep Modal for short iteration.
-   Do not mix RLVR data into SFT. `gcp_spot.sh` is not runnable yet.
+1. **P4 marathon**: build `dataset_builder --rlvr-out` from train.jsonl,
+   then `SMOKE=0 GROUP_SIZE=4 ITERS=200 ./cloud/gcp_spot.sh` after copying
+   `sft-final` onto the VM. L4 G=8 VL may OOM; keep G=2–4 on 24GB.
 2. **P6 head-to-head**: set `SPECULA_LLM_BASE_URL` and fill
    `docs/BENCHMARK.md`. Serve `/checkpoints/sft-final` (now VL).
 

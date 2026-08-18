@@ -52,3 +52,30 @@ def parse(raw: str) -> VerdictOut | None:
         return VerdictOut.model_validate(data)
     except Exception:
         return None
+
+
+def to_forge_verdict(raw: str):
+    """Raw model text -> forge Verdict, or None if unparseable.
+
+    Shared by benchmark_eval and RLVR so parse-to-score is one path.
+    Unrecognized type/severity strings are dropped, not a parse miss.
+    """
+    out = parse(raw)
+    if out is None:
+        return None
+    from specula_forge.schema import Severity, Verdict, Violation, ViolationType
+    violations = []
+    for v in out.violations:
+        try:
+            violations.append(Violation(
+                type=ViolationType(v.type),
+                severity=Severity(v.severity),
+                cfr=v.cfr,
+                observed=v.observed,
+                expected=v.expected,
+                correction=v.correction,
+            ))
+        except ValueError:
+            continue
+    verdict = out.verdict if out.verdict in ("PASS", "FLAG") else "FLAG"
+    return Verdict(verdict=verdict, violations=violations)
