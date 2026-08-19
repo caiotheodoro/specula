@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from .schema import SYSTEM_PROMPT, VerdictOut, parse, to_forge_verdict
@@ -30,6 +30,7 @@ def _eval_payload(task) -> dict:
 
 
 def _default_post(url: str, headers: dict, body: dict) -> dict:
+    import urllib.error
     import urllib.request
     req = urllib.request.Request(
         url,
@@ -37,8 +38,11 @@ def _default_post(url: str, headers: dict, body: dict) -> dict:
         headers={"Content-Type": "application/json", **headers},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.loads(resp.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"{url} HTTP {e.code}: {e.read().decode()[:800]}") from e
 
 
 def complete_chat(model: str, payload: dict, post=None) -> str:
@@ -55,7 +59,6 @@ def complete_chat(model: str, payload: dict, post=None) -> str:
     image_b64 = base64.b64encode(payload["image"]).decode()
     body = {
         "model": model,
-        "temperature": 0,
         "messages": [
             {"role": "system", "content": payload["system"]},
             {"role": "user", "content": [
@@ -66,6 +69,9 @@ def complete_chat(model: str, payload: dict, post=None) -> str:
             ]},
         ],
     }
+    # GPT-5.x only accepts the default temperature (1); 0 is a 400.
+    if not model.startswith("gpt-5"):
+        body["temperature"] = 0
     headers = {"Authorization": f"Bearer {key}"} if key else {}
     url = base if base.endswith("/chat/completions") else f"{base}/chat/completions"
     data = (post or _default_post)(url, headers, body)
@@ -94,13 +100,15 @@ def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,
     remaining = [t for t in tasks if t.task_id not in done_ids]
     if limit is not None:
         remaining = remaining[:limit]
-    with ThreadPoolExecutor(max_workers=concurrency) as ex:
-        predictions = list(ex.map(
-            lambda t: parse(_predict_one(t, model)),
-            remaining))
     results = []
-    with open(out, "a") as f:
-        for t, p in zip(remaining, predictions):
+    with ThreadPoolExecutor(max_workers=concurrency) as ex, open(out, "a") as f:
+        futs = {ex.submit(_predict_one, t, model): t for t in remaining}
+        for fut in as_completed(futs):
+            t = futs[fut]
+            try:
+                p = parse(fut.result() or "")
+            except Exception:
+                p = None
             exp = VerdictOut(verdict=t.expected.verdict, violations=[
                 {"type": v.type.value, "severity": v.severity.value,
                  "cfr": v.cfr, "observed": v.observed, "expected": v.expected,
@@ -108,7 +116,8 @@ def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,
             row = {"task_id": t.task_id, "expected": exp.model_dump(),
                    "predicted": p.model_dump() if p else None,
                    "score": score_predictions(t.expected, _to_verdict(p))}
-            f.write(json.dumps(row) + "\n")
+            f.write(json.dumps(row) + chr(10))
+            f.flush()
             results.append(row["score"])
     all_scores = []
     for line in out.read_text().splitlines():

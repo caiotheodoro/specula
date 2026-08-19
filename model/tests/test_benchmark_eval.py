@@ -119,3 +119,59 @@ def test_complete_chat_accepts_full_chat_completions_url(monkeypatch):
     monkeypatch.setenv("SPECULA_LLM_BASE_URL", "https://modal.example/chat/completions")
     complete_chat("m", {"system": "s", "image": b"x"}, post=fake_post)
     assert captured["url"] == "https://modal.example/chat/completions"
+
+
+def test_complete_chat_omits_temperature_for_gpt5(monkeypatch):
+    from specula_model.benchmark_eval import complete_chat
+
+    captured = {}
+
+    def fake_post(url, headers, body):
+        captured["body"] = body
+        return {"choices": [{"message": {"content": "{}"}}]}
+
+    monkeypatch.setenv("SPECULA_LLM_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setenv("SPECULA_LLM_API_KEY", "sk-test")
+    complete_chat("gpt-5.6-luna", {"system": "s", "image": b"x"}, post=fake_post)
+    assert "temperature" not in captured["body"]
+
+
+def test_complete_chat_keeps_temperature_zero_for_other_models(monkeypatch):
+    from specula_model.benchmark_eval import complete_chat
+
+    captured = {}
+
+    def fake_post(url, headers, body):
+        captured["body"] = body
+        return {"choices": [{"message": {"content": "{}"}}]}
+
+    monkeypatch.setenv("SPECULA_LLM_BASE_URL", "http://llm.local/v1")
+    monkeypatch.setenv("SPECULA_LLM_API_KEY", "sk-test")
+    complete_chat("qwen-local", {"system": "s", "image": b"x"}, post=fake_post)
+    assert captured["body"]["temperature"] == 0
+
+
+def test_run_benchmark_keeps_earlier_rows_if_later_call_fails(tmp_path: Path, monkeypatch):
+    from specula_model import benchmark_eval as be
+
+    rng = random.Random(7)
+    t1 = task(rng, "cookies", seed=7, n_violations=1)
+    t2 = task(rng, "bread", seed=8, n_violations=1)
+    tasks_file = tmp_path / "tasks.jsonl"
+    _write_tasks(tasks_file, t1, t2)
+    out = tmp_path / "results.jsonl"
+    n = {"calls": 0}
+
+    def boom(_task, _model):
+        n["calls"] += 1
+        if n["calls"] >= 2:
+            raise RuntimeError("provider down")
+        return _task.expected.model_dump_json()
+
+    monkeypatch.setattr(be, "_predict_one", boom)
+    try:
+        be.run_benchmark(tasks_file, "gpt-5.6-luna", 1, out)
+    except RuntimeError:
+        pass
+    ids = [json.loads(l)["task_id"] for l in out.read_text().splitlines() if l.strip()]
+    assert t1.task_id in ids

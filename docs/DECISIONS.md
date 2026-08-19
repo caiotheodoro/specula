@@ -215,3 +215,20 @@ CONTRACTS.md; revise only with measured evidence.
   P6 measurement is batch `eval_adapter`, not `modal serve`.
 - Alternatives rejected: aliasing SFT type strings to `ALLERGEN`; calling
   train_loss a quality win; filling frontier rows without a live API.
+
+
+## 2026-08-18 — P6 — GPT-5.6 Luna vs DeepSeek on seed 777
+- Decision: score Luna on the same oracle as Specula; record DeepSeek as
+  ineligible (text-only hosted API). Do not OCR labels into DeepSeek to
+  fake a vision number. Do not alias Luna's free-text types onto CONTRACTS
+  ids. GPT-5.x requests omit `temperature` (0 is HTTP 400).
+- Rationale: Luna sees the PNG and emits FLAG JSON (988/1000) with 5239
+  violation objects, but 0 taxonomy-valid (type, severity) pairs, so
+  severity-weighted recall is 0.000 — same as RLVR on the catch metric,
+  better on verdict accuracy (0.726 vs 0.267). DeepSeek v4-flash returns
+  HTTP 400 `unknown variant image_url, expected text`.
+- Evidence: `forge/data/eval-luna.jsonl` n=1000 parse 0.989 recall 0.000
+  verdict_acc 0.726; DeepSeek 400 reproduced on a 1x1 PNG; `make validate`
+  after omitting gpt-5 temperature.
+- Alternatives rejected: mapping `high`→HIGH / prose types→ALLERGEN;
+  running DeepSeek on OCR transcripts and calling it a label-vision score.

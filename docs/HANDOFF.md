@@ -56,8 +56,11 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   0.000 (FLAG prose fails taxonomy ids). Report in `docs/BENCHMARK.md`.
   Runs: smoke ap-gyPoLSdf6NozH4MfyaDatI, rlvr-val
   ap-pJlbPpvMVE0CpabUbvHPt1, sft-val ap-9hYSRHlAxpADZBCh5Hdolv,
-  rlvr-bench ap-NzsgAhks5GebScnminKlZT. Frontier/base not run (no API
-  key / no extra GPU). `make serve` is the local OpenAI-compat path.
+  rlvr-bench ap-NzsgAhks5GebScnminKlZT. GPT-5.6 Luna n=1000: parse 0.989,
+  recall 0.000, verdict acc 0.726 (almost always FLAG, non-taxonomy types).
+  DeepSeek v4-flash hosted API is text-only (HTTP 400 on image_url).
+  `make serve` is the local OpenAI-compat path. GPT-5.x omits temperature
+  (only default 1 is accepted).
 - **Verified green**: `make validate` (46 forge + 42 model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
@@ -70,8 +73,9 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
    sampling of zero-std groups (still unbuilt).
 2. **GCP**: request `GPUS_ALL_REGIONS` > 0 if a longer GRPO/self-play
    marathon should leave Modal.
-3. Frontier / base zero-shot on seed 777 when a real `SPECULA_LLM_BASE_URL`
-   exists. Do not mix RLVR traces into SFT.
+3. Schema-lock outputs to CONTRACTS type/severity ids — Luna and SFT both
+   FLAG in prose and score recall 0. Qwen 2.4T and base 27B still unrun.
+   Do not mix RLVR traces into SFT.
 
 ## Bootstrap (fresh agent)
 
