@@ -70,3 +70,66 @@ def test_reward_clean_pass_is_one_or_minus_one():
 
 def test_reward_unparseable_is_minus_one():
     assert reward(_allergen("21 CFR 101.4"), None) == -1.0
+
+
+
+def _fmt() -> Violation:
+    return Violation(
+        type=ViolationType.FORMATTING,
+        severity="MEDIUM",
+        cfr="21 CFR 101.9",
+        observed="o",
+        expected="e",
+        correction="c",
+    )
+
+
+def test_precision_is_caught_over_emitted():
+    expected = _allergen("21 CFR 101.4")
+    predicted = Verdict(
+        verdict="FLAG",
+        violations=list(expected.violations) + [_fmt()],
+    )
+    row = score_predictions(expected, predicted)
+    summary = summarize([row])
+    assert summary["precision"] == 0.5
+
+
+def test_critical_and_high_recall_are_separate():
+    expected = Verdict(
+        verdict="FLAG",
+        violations=[
+            Violation(
+                type=ViolationType.ALLERGEN,
+                severity="CRITICAL",
+                cfr="21 CFR 101.4",
+                observed="o",
+                expected="e",
+                correction="c",
+            ),
+            Violation(
+                type=ViolationType.MISSING_NUTRIENT,
+                severity="HIGH",
+                cfr="21 CFR 101.9",
+                observed="o",
+                expected="e",
+                correction="c",
+            ),
+        ],
+    )
+    predicted = Verdict(verdict="FLAG", violations=list(expected.violations[:1]))
+    row = score_predictions(expected, predicted)
+    summary = summarize([row])
+    assert summary["critical_recall"] == 1.0
+    assert summary["high_recall"] == 0.0
+
+
+
+def test_unparseable_flag_counts_in_recall_denominator():
+    row = score_predictions(_allergen("21 CFR 101.4"), None)
+    assert row["total"] == 1.0
+    assert row["caught"] == 0.0
+    summary = summarize([row])
+    assert summary["parse_rate"] == 0.0
+    assert summary["severity_weighted_recall"] == 0.0
+    assert summary["n_violation_tasks"] == 1.0

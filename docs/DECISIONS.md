@@ -196,3 +196,22 @@ CONTRACTS.md; revise only with measured evidence.
   7787s, last-step reward 0.1 (std 0.56, frac_zero_std 1).
 - Alternatives rejected: calling this a solved reviewer without a
   benchmark pass; immediately bumping G on L4.
+
+
+## 2026-08-18 — P6 — RLVR oracle eval is a negative result
+- Decision: publish seed-777 numbers as-is. RLVR is not a better reviewer
+  than VL SFT on oracle metrics; both have severity-weighted recall 0.
+  Do not remap free-text types onto CONTRACTS ids to inflate recall.
+- Rationale: 200-step GRPO saturated (`frac_reward_zero_std=1`). On
+  n=1000 the adapter emitted 997 PASS, 1 non-taxonomy FLAG, 2 truncated
+  FLAGs. VL SFT on val n=196 emits FLAG-shaped JSON (`Allergen
+  Declaration` / `critical`) that `to_forge_verdict` drops. Precision 1.0
+  is empty-emission, not skill. Unparseable FLAG tasks now keep their
+  expected weight in the recall denominator.
+- Evidence: ap-NzsgAhks5GebScnminKlZT n=1000 parse 0.998 recall 0.000
+  verdict_acc 0.267; ap-9hYSRHlAxpADZBCh5Hdolv n=196 parse 0.786 recall
+  0.000; `make validate` 46 forge + 42 model. No OPENAI_/DEEPSEEK_ key
+  in the environment. Modal 1.2.6 cannot serde `str` class parameters, so
+  P6 measurement is batch `eval_adapter`, not `modal serve`.
+- Alternatives rejected: aliasing SFT type strings to `ALLERGEN`; calling
+  train_loss a quality win; filling frontier rows without a live API.

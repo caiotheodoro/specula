@@ -105,3 +105,17 @@ def test_predict_one_uses_complete_chat_for_non_mock(monkeypatch):
     t = task(random.Random(7), "cookies", seed=7, n_violations=1)
     monkeypatch.setattr(be, "complete_chat", lambda model, payload, post=None: '{"verdict":"FLAG","violations":[]}')
     assert be._predict_one(t, "deepseek-v4-flash") == '{"verdict":"FLAG","violations":[]}'
+
+
+def test_complete_chat_accepts_full_chat_completions_url(monkeypatch):
+    from specula_model.benchmark_eval import complete_chat
+
+    captured = {}
+
+    def fake_post(url, headers, body):
+        captured["url"] = url
+        return {"choices": [{"message": {"content": "{}"}}]}
+
+    monkeypatch.setenv("SPECULA_LLM_BASE_URL", "https://modal.example/chat/completions")
+    complete_chat("m", {"system": "s", "image": b"x"}, post=fake_post)
+    assert captured["url"] == "https://modal.example/chat/completions"

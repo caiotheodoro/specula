@@ -10,7 +10,7 @@ reviews FDA food labels → cited compliance report. Specs: `README.md`
 ```
 forge/    specula_forge: seeded label generator + CFR verifier-as-oracle +
           contamination monitor + CLI (pilot/split/leakprobe)
-model/    specula_model: dataset builder (stub), benchmark eval (stub),
+model/    specula_model: dataset builder, benchmark eval, VL infer/serve,
           schema.py = model-output contract + parser + SYSTEM_PROMPT
 cloud/    Modal app (L4 24GB, QLoRA) + Dockerfile + GCP spot script
 eval/     deterministic golden harness notes
@@ -50,17 +50,28 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   (~2.2h GPU), train_loss −0.002308, checkpoint `/checkpoints/rlvr-final`.
   Late steps often `frac_reward_zero_std=1` with 11–14 token JSON — group
   advantages collapsed. GCP still `GPUS_ALL_REGIONS=0`. Do not mix RLVR into SFT.
-- **Verified green**: `make validate` (forge + model). Seed-7 pilot
+- **P6 eval**: `cloud/modal_eval.py` 4-bit generate + forge oracle.
+  RLVR on seed 777 n=1000: parse 0.998, severity-w. recall **0.000**,
+  verdict acc 0.267 (always PASS). SFT val n=196: parse 0.786, recall
+  0.000 (FLAG prose fails taxonomy ids). Report in `docs/BENCHMARK.md`.
+  Runs: smoke ap-gyPoLSdf6NozH4MfyaDatI, rlvr-val
+  ap-pJlbPpvMVE0CpabUbvHPt1, sft-val ap-9hYSRHlAxpADZBCh5Hdolv,
+  rlvr-bench ap-NzsgAhks5GebScnminKlZT. Frontier/base not run (no API
+  key / no extra GPU). `make serve` is the local OpenAI-compat path.
+- **Verified green**: `make validate` (46 forge + 42 model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
 ## Next actions
 
-1. **P6 head-to-head**: serve `/checkpoints/rlvr-final` (and SFT as
-   baseline), set `SPECULA_LLM_BASE_URL`, fill `docs/BENCHMARK.md`.
+1. **Do not ship this adapter as a reviewer.** RLVR collapsed to PASS;
+   SFT does not emit CONTRACTS type/severity ids. Next training loop:
+   constrained decoding or schema-locked SFT, then GRPO with dynamic
+   sampling of zero-std groups (still unbuilt).
 2. **GCP**: request `GPUS_ALL_REGIONS` > 0 if a longer GRPO/self-play
-   marathon should leave Modal. Dynamic sampling of zero-std groups is
-   still unbuilt (`frac_reward_zero_std` went to 1 late in this run).
+   marathon should leave Modal.
+3. Frontier / base zero-shot on seed 777 when a real `SPECULA_LLM_BASE_URL`
+   exists. Do not mix RLVR traces into SFT.
 
 ## Bootstrap (fresh agent)
 

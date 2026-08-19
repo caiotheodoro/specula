@@ -67,7 +67,8 @@ def complete_chat(model: str, payload: dict, post=None) -> str:
         ],
     }
     headers = {"Authorization": f"Bearer {key}"} if key else {}
-    data = (post or _default_post)(f"{base}/chat/completions", headers, body)
+    url = base if base.endswith("/chat/completions") else f"{base}/chat/completions"
+    data = (post or _default_post)(url, headers, body)
     return data["choices"][0]["message"]["content"]
 
 
@@ -79,7 +80,7 @@ def _predict_one(task, model: str) -> str:
 
 
 def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,
-                  out: Path) -> list[dict]:
+                  out: Path, limit: int | None = None) -> list[dict]:
     from specula_forge.score import score_predictions
     from specula_forge.schema import Task
 
@@ -91,6 +92,8 @@ def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,
             if line.strip():
                 done_ids.add(json.loads(line)["task_id"])
     remaining = [t for t in tasks if t.task_id not in done_ids]
+    if limit is not None:
+        remaining = remaining[:limit]
     with ThreadPoolExecutor(max_workers=concurrency) as ex:
         predictions = list(ex.map(
             lambda t: parse(_predict_one(t, model)),
@@ -137,10 +140,12 @@ def main() -> None:
     ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--out", default="results.jsonl")
     ap.add_argument("--adapter-path", default=None,
-                    help="LoRA adapter path (ignored until a real adapter is wired)")
+                    help="LoRA adapter path for Modal/local serve (not loaded in-process)")
+    ap.add_argument("--limit", type=int, default=0,
+                    help="Cap remaining tasks (0 = all)")
     args = ap.parse_args()
     run_benchmark(Path(args.tasks_file), args.model, args.concurrency,
-                  Path(args.out))
+                  Path(args.out), limit=(args.limit or None))
 
 
 if __name__ == "__main__":

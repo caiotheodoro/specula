@@ -16,16 +16,26 @@ def severity_weight(severity: Severity) -> float:
     return SEVERITY_WEIGHTS[severity]
 
 
+def _severity_counts(exp_keys, pred_keys, severity: Severity) -> tuple[float, float]:
+    total = sum(1.0 for _, s in exp_keys if s == severity)
+    caught = sum(1.0 for t, s in exp_keys if s == severity and (t, s) in pred_keys)
+    return caught, total
+
+
 def score_predictions(expected: Verdict, predicted: Verdict | None) -> dict[str, float]:
     """Score one task: returns caught-weight, total-weight, fp count, parsed."""
-    parsed = predicted is not None
-    if not parsed:
-        return {"caught": 0.0, "total": 0.0, "fp": 0.0, "parsed": 0.0,
-                "citation_hits": 0.0, "citation_total": 0.0,
-                "verdict_correct": 0.0}
     exp_keys = violation_keys(expected)
-    pred_keys = violation_keys(predicted)
+    pred_keys = violation_keys(predicted) if predicted is not None else set()
+    crit_c, crit_t = _severity_counts(exp_keys, pred_keys, Severity.CRITICAL)
+    high_c, high_t = _severity_counts(exp_keys, pred_keys, Severity.HIGH)
+    parsed = predicted is not None
     total = sum(severity_weight(s) for _, s in exp_keys)
+    if not parsed:
+        return {"caught": 0.0, "total": total, "fp": 0.0, "parsed": 0.0,
+                "citation_hits": 0.0, "citation_total": 0.0,
+                "verdict_correct": 0.0, "emitted": 0.0,
+                "critical_caught": 0.0, "critical_total": crit_t,
+                "high_caught": 0.0, "high_total": high_t}
     caught = sum(severity_weight(s) for t, s in exp_keys if (t, s) in pred_keys)
     fp = sum(1 for t, s in pred_keys if (t, s) not in exp_keys)
     exp_cfr = {(v.type, v.severity): v.cfr for v in expected.violations}
@@ -40,7 +50,10 @@ def score_predictions(expected: Verdict, predicted: Verdict | None) -> dict[str,
     verdict_correct = 1.0 if predicted.verdict == expected.verdict else 0.0
     return {"caught": caught, "total": total, "fp": fp, "parsed": 1.0,
             "citation_hits": citation_hits, "citation_total": citation_total,
-            "verdict_correct": verdict_correct}
+            "verdict_correct": verdict_correct,
+            "emitted": float(len(pred_keys)),
+            "critical_caught": crit_c, "critical_total": crit_t,
+            "high_caught": high_c, "high_total": high_t}
 
 
 def summarize(results: list[dict[str, float]]) -> dict[str, float]:
@@ -55,6 +68,12 @@ def summarize(results: list[dict[str, float]]) -> dict[str, float]:
     n_violation_tasks = sum(1 for r in results if r["total"] > 0)
     cit_hits = sum(r["citation_hits"] for r in results)
     cit_total = sum(r["citation_total"] for r in results)
+    emitted = sum(r.get("emitted", r["fp"] + r["citation_total"]) for r in results)
+    matched = cit_total
+    crit_c = sum(r.get("critical_caught", 0.0) for r in results)
+    crit_t = sum(r.get("critical_total", 0.0) for r in results)
+    high_c = sum(r.get("high_caught", 0.0) for r in results)
+    high_t = sum(r.get("high_total", 0.0) for r in results)
     return {
         "n_tasks": float(n),
         "parse_rate": parsed,
@@ -63,6 +82,9 @@ def summarize(results: list[dict[str, float]]) -> dict[str, float]:
         "false_positives_per_task": fp / n,
         "citation_exact_match": cit_hits / cit_total if cit_total else 1.0,
         "verdict_accuracy": sum(r.get("verdict_correct", 0.0) for r in results) / n,
+        "precision": matched / emitted if emitted else 1.0,
+        "critical_recall": crit_c / crit_t if crit_t else 1.0,
+        "high_recall": high_c / high_t if high_t else 1.0,
     }
 
 

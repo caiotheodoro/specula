@@ -14,7 +14,7 @@ study:
 	cd forge && $(PY) python -m specula_forge.cli pilot --seed 7 --n 400
 
 bench:
-	cd model && $(PY) python -m specula_model.benchmark_eval --adapter-path adapters/champion --tasks-file data/benchmark.jsonl
+	cd model && $(PY) python -m specula_model.benchmark_eval --adapter-path adapters/champion --tasks-file ../forge/data/benchmark.jsonl
 
 serve:
 	cd model && $(PY) python -m specula_model.serve --adapter-path adapters/champion
