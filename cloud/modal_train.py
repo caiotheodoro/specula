@@ -1,6 +1,6 @@
 """Modal training app (primary cloud, free $30/mo credit, L4 24GB).
 
-QLoRA SFT on Qwen/Qwen3.8-27B. Smoke first (--smoke) to validate DeltaNet
+QLoRA SFT on Qwen/Qwen2.5-VL-7B-Instruct. Smoke first (--smoke) to validate DeltaNet
 tooling, then full runs. Checkpoints persist to a Modal Volume so runs resume
 across monthly credit cycles. GPU: L4 (24GB) fits 4-bit QLoRA of the 28B VL
 model with gradient checkpointing.
@@ -12,16 +12,9 @@ Run:
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import modal
-
-_MODEL_SRC = Path(__file__).resolve().parent.parent / "model" / "src"
-if str(_MODEL_SRC) not in sys.path:
-    sys.path.insert(0, str(_MODEL_SRC))
-
-from specula_model.train_config import sft_records_from_bytes, trainer_kwargs
 
 app = modal.App("specula-train")
 vol = modal.Volume.from_name("specula-checkpoints", create_if_missing=True)
@@ -65,12 +58,17 @@ def _with_pil_images(records: list[dict]) -> list[dict]:
     volumes={"/checkpoints": vol, "/root/.cache/huggingface": hf_cache},
     timeout=60 * 60 * 6,
 )
-def train(data: bytes, smoke: bool = False, epochs: int = 2) -> str:
+def train(data: bytes, smoke: bool = False, epochs: int = 2,
+          resume: str = "", out: str = "") -> str:
+    import sys
     from datasets import Dataset
-    from transformers import AutoModelForMultimodalLM, BitsAndBytesConfig
-    from peft import LoraConfig, get_peft_model
+    from transformers import BitsAndBytesConfig
+    from peft import LoraConfig, PeftModel, get_peft_model
     from trl import SFTTrainer, SFTConfig
+    from specula_model.train_config import (
+        load_base_vl, sft_records_from_bytes, sft_save_paths, trainer_kwargs)
 
+    resume, save_dir = sft_save_paths(resume=resume, out=out)
     kw = trainer_kwargs(smoke=smoke, epochs=epochs)
     records = _with_pil_images(sft_records_from_bytes(data))
     if smoke and len(records) < 16:
@@ -81,14 +79,18 @@ def train(data: bytes, smoke: bool = False, epochs: int = 2) -> str:
         bnb_4bit_compute_dtype="bfloat16",
         bnb_4bit_use_double_quant=True,
     )
-    model = AutoModelForMultimodalLM.from_pretrained(
-        "Qwen/Qwen3.8-27B", device_map="auto", dtype="bfloat16",
-        quantization_config=bnb)
+    model, processor = load_base_vl(bnb)
     model.config.use_cache = False
-    lora = LoraConfig(r=8 if smoke else 32, lora_alpha=16 if smoke else 64,
-                      lora_dropout=0.05,
-                      target_modules="all-linear", task_type="CAUSAL_LM")
-    model = get_peft_model(model, lora)
+    adapter_path = Path(resume) if resume else None
+    if adapter_path is not None and adapter_path.exists():
+        model = PeftModel.from_pretrained(model, str(adapter_path), is_trainable=True)
+    else:
+        if resume and not smoke:
+            raise FileNotFoundError(f"SFT adapter missing: {resume}")
+        lora = LoraConfig(r=8 if smoke else 32, lora_alpha=16 if smoke else 64,
+                          lora_dropout=0.05,
+                          target_modules="all-linear", task_type="CAUSAL_LM")
+        model = get_peft_model(model, lora)
     cfg = SFTConfig(
         output_dir=kw["output_dir"], max_length=kw["max_seq_length"],
         per_device_train_batch_size=kw["per_device_train_batch_size"],
@@ -100,15 +102,21 @@ def train(data: bytes, smoke: bool = False, epochs: int = 2) -> str:
     )
     trainer = SFTTrainer(
         model=model, args=cfg, train_dataset=Dataset.from_list(records),
+        processing_class=processor,
     )
     trainer.train()
-    trainer.save_model("/checkpoints/sft-final")
+    trainer.save_model(save_dir)
     vol.commit()
     hf_cache.commit()
-    return "done"
+    return save_dir
 
 
 @app.local_entrypoint()
-def main(smoke: bool = False, epochs: int = 2, data: str = "") -> None:
+def main(smoke: bool = False, epochs: int = 2, data: str = "",
+         resume: str = "", out: str = "") -> None:
     blob = Path(data).read_bytes() if data else b""
-    train.remote(blob, smoke=smoke, epochs=epochs)
+    if smoke:
+        print(train.remote(blob, smoke=smoke, epochs=epochs, resume=resume, out=out))
+        return
+    call = train.spawn(blob, smoke=smoke, epochs=epochs, resume=resume, out=out)
+    print(call.object_id)

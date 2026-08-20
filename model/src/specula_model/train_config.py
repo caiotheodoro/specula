@@ -3,10 +3,52 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from .schema import SYSTEM_PROMPT
 
 SMOKE_MAX_STEPS = 4
+
+BASE_MODEL_ID = "Qwen/Qwen2.5-VL-7B-Instruct"
+PROTECTED_ADAPTERS = frozenset({
+    "/checkpoints/sft-final",
+    "/checkpoints/sft-schema",
+    "/checkpoints/rlvr-final",
+    "/checkpoints/rlvr-probe",
+})
+
+
+def vl_model_import(model_id: str) -> str:
+    if "Qwen2.5-VL" in model_id:
+        return "Qwen2_5_VLForConditionalGeneration"
+    if "Qwen3.8" in model_id:
+        return "AutoModelForMultimodalLM"
+    return "AutoModelForImageTextToText"
+
+
+def require_unprotected_save(path: str) -> str:
+    resolved = path.rstrip("/")
+    if resolved in PROTECTED_ADAPTERS:
+        raise ValueError(f"refusing to overwrite protected adapter {path}")
+    return path
+
+
+def load_base_vl(quantization_config):
+    """Load BASE_MODEL_ID 4-bit. Returns (model, processor). GPU only."""
+    name = vl_model_import(BASE_MODEL_ID)
+    if name == "Qwen2_5_VLForConditionalGeneration":
+        from transformers import Qwen2_5_VLForConditionalGeneration as Cls
+    elif name == "AutoModelForMultimodalLM":
+        from transformers import AutoModelForMultimodalLM as Cls
+    else:
+        from transformers import AutoModelForImageTextToText as Cls
+    from transformers import AutoProcessor
+    model = Cls.from_pretrained(
+        BASE_MODEL_ID, device_map="auto", dtype="bfloat16",
+        quantization_config=quantization_config)
+    processor = AutoProcessor.from_pretrained(BASE_MODEL_ID)
+    return model, processor
+
 
 
 def trainer_kwargs(smoke: bool, epochs: int = 2) -> dict:
@@ -39,6 +81,7 @@ def _chat(user: str, assistant: str, image_b64: str | None = None) -> dict:
     if image_b64:
         return {
             "messages": [
+                {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
                 {
                     "role": "user",
                     "content": [
@@ -52,10 +95,23 @@ def _chat(user: str, assistant: str, image_b64: str | None = None) -> dict:
         }
     return {
         "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user},
             {"role": "assistant", "content": assistant},
         ]
     }
+
+
+def sft_save_paths(resume: str = "", out: str = "") -> tuple[str, str]:
+    """7B default is sft-7b. 27B adapter dirs are refused."""
+    resume = resume or ""
+    if not out:
+        out = "/checkpoints/sft-7b"
+    return resume, require_unprotected_save(out)
+
+
+def rlvr_save_dir(checkpoint_dir: str, name: str = "rlvr-final") -> str:
+    return str(Path(checkpoint_dir) / name)
 
 
 def dummy_sft_records() -> list[dict]:
@@ -121,13 +177,15 @@ def grpo_kwargs(smoke: bool, iters: int = 200, group_size: int = 2) -> dict:
         "gradient_checkpointing": True,
         "bf16": True,
         "max_steps": RLVR_SMOKE_MAX_STEPS if smoke else iters,
-        "max_completion_length": 64 if smoke else 128,
-        "max_prompt_length": 256 if smoke else 512,
+        "max_completion_length": 64 if smoke else 512,
+        # TRL left-truncates at max_prompt_length and will slice Qwen2.5-VL
+        # image tokens. None disables that (HF GRPO VLM docs).
+        "max_prompt_length": None,
         "output_dir": "/checkpoints/rlvr",
         "scale_rewards": False,
         "remove_unused_columns": False,
-        "mask_truncated_completions": True,
-        "chat_template_kwargs": {"enable_thinking": False},
+        # Truncated-all batches (clipped_ratio=1) would zero the loss.
+        "mask_truncated_completions": False,
     }
 
 

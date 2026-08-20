@@ -12,11 +12,11 @@ from io import BytesIO
 from pathlib import Path
 
 from .schema import SYSTEM_PROMPT, parse, to_forge_verdict
-from .train_config import USER_PROMPT
+from .train_config import BASE_MODEL_ID, USER_PROMPT, load_base_vl
 
 EVAL_THUMB = (256, 256)
-EVAL_MAX_NEW_TOKENS = 256
-MODEL_ID = "Qwen/Qwen3.8-27B"
+EVAL_MAX_NEW_TOKENS = 512
+MODEL_ID = BASE_MODEL_ID
 
 
 def eval_messages(image=None) -> list[dict]:
@@ -130,7 +130,7 @@ def load_vl_adapter(adapter: str):
     """4-bit Qwen3.8-27B + optional PEFT adapter. GPU only."""
     from pathlib import Path as _Path
     from peft import PeftModel
-    from transformers import AutoModelForMultimodalLM, AutoProcessor, BitsAndBytesConfig
+    from transformers import BitsAndBytesConfig
 
     bnb = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -138,12 +138,10 @@ def load_vl_adapter(adapter: str):
         bnb_4bit_compute_dtype="bfloat16",
         bnb_4bit_use_double_quant=True,
     )
-    model = AutoModelForMultimodalLM.from_pretrained(
-        MODEL_ID, device_map="auto", dtype="bfloat16", quantization_config=bnb)
+    model, processor = load_base_vl(bnb)
     if adapter and _Path(adapter).exists():
         model = PeftModel.from_pretrained(model, adapter, is_trainable=False)
     model.eval()
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
     tok = getattr(processor, "tokenizer", processor)
     eos_id = getattr(tok, "eos_token_id", None)
     pad_id = getattr(tok, "pad_token_id", None) or eos_id

@@ -44,22 +44,26 @@ image = (
     volumes={"/checkpoints": vol, "/root/.cache/huggingface": hf_cache},
     timeout=60 * 60 * 12,
 )
-def rlvr(prompts: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-final",
-         iters: int = 200, group_size: int = 2) -> str:
+def rlvr(prompts: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-7b",
+         iters: int = 1200, group_size: int = 2, save_name: str = "rlvr-7b") -> str:
     import sys as _sys
     if "/opt/forge-src" not in _sys.path:
         _sys.path.insert(0, "/opt/forge-src")
     from specula_model.rlvr_train import run_grpo
     out = run_grpo(prompts, smoke=smoke, adapter=adapter, iters=iters,
-                   group_size=group_size, checkpoint_dir="/checkpoints")
+                   group_size=group_size, checkpoint_dir="/checkpoints",
+                   save_name=save_name)
     vol.commit()
     hf_cache.commit()
     return out
 
 
 @app.local_entrypoint()
-def main(smoke: bool = False, prompts: str = "", adapter: str = "/checkpoints/sft-final",
-         iters: int = 200, group_size: int = 2) -> None:
+def main(smoke: bool = False, prompts: str = "", adapter: str = "/checkpoints/sft-7b",
+         iters: int = 1200, group_size: int = 2, save_name: str = "rlvr-7b") -> None:
     blob = Path(prompts).read_bytes() if prompts else b""
-    print(rlvr.remote(blob, smoke=smoke, adapter=adapter, iters=iters,
-                      group_size=group_size))
+    # spawn so `modal run --detach` returns; .remote() is cancelled when the
+    # local client drops (Cursor shell timeouts killed the first two probes).
+    call = rlvr.spawn(blob, smoke=smoke, adapter=adapter, iters=iters,
+                      group_size=group_size, save_name=save_name)
+    print(call.object_id)

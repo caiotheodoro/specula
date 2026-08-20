@@ -11,8 +11,8 @@
 # Request a GPUS_ALL_REGIONS increase before this script can launch an L4.
 #
 # Prereq: gcloud account you@example.com, project
-# your-gcp-project, Compute API enabled. Copy /checkpoints/sft-final
-# onto the VM (Modal volume) before a full run; smoke can start a fresh LoRA.
+# your-gcp-project, Compute API enabled. Copy /checkpoints/sft-schema (or rlvr-probe) onto the VM before a full run;
+# smoke can start a fresh LoRA. Do not continue from collapsed rlvr-final.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -24,7 +24,8 @@ SMOKE=${SMOKE:-1}
 ITERS=${ITERS:-200}
 GROUP_SIZE=${GROUP_SIZE:-2}
 PROMPTS=${PROMPTS:-}
-ADAPTER=${ADAPTER:-/opt/specula-ckpts/sft-final}
+ADAPTER=${ADAPTER:-/opt/specula-ckpts/sft-schema}
+SAVE_NAME=${SAVE_NAME:-rlvr-marathon}
 
 gcloud compute instances create "$NAME" \
   --project="$PROJECT" --zone="$ZONE" --machine-type="$MACHINE" \
@@ -61,7 +62,7 @@ cd /opt/specula
 EXTRA=""
 if [ "${SMOKE}" = "1" ]; then EXTRA="--smoke"; fi
 if [ -n "${PROMPTS}" ]; then EXTRA="\$EXTRA --prompts ${PROMPTS}"; fi
-python3 -m specula_model.rlvr_train \$EXTRA --adapter ${ADAPTER} --iters ${ITERS} --group-size ${GROUP_SIZE} --checkpoint-dir /opt/specula-ckpts
+python3 -m specula_model.rlvr_train \$EXTRA --adapter ${ADAPTER} --iters ${ITERS} --group-size ${GROUP_SIZE} --checkpoint-dir /opt/specula-ckpts --save-name ${SAVE_NAME}
 EOF
 )
 

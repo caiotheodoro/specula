@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .train_config import grpo_kwargs, grpo_trainer_kwargs, rlvr_records_from_bytes
+from .train_config import grpo_kwargs, grpo_trainer_kwargs, load_base_vl, rlvr_records_from_bytes, rlvr_save_dir
 
 
 def _with_pil_images(records: list[dict]) -> list[dict]:
@@ -37,12 +37,13 @@ def _with_pil_images(records: list[dict]) -> list[dict]:
     return out
 
 
-def run_grpo(data: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-final",
+def run_grpo(data: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-7b",
              iters: int = 200, group_size: int = 2,
-             checkpoint_dir: str = "/checkpoints") -> str:
+             checkpoint_dir: str = "/checkpoints",
+             save_name: str = "rlvr-final") -> str:
     from datasets import Dataset
     from peft import LoraConfig, PeftModel, get_peft_model
-    from transformers import AutoModelForMultimodalLM, AutoProcessor, BitsAndBytesConfig
+    from transformers import BitsAndBytesConfig
     from trl import GRPOConfig, GRPOTrainer
 
     from .rlvr_reward import oracle_reward_func
@@ -52,16 +53,14 @@ def run_grpo(data: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-
     if smoke and len(records) < 4:
         records = (records * 4)[:4]
     out_dir = str(Path(checkpoint_dir) / "rlvr")
-    final_dir = str(Path(checkpoint_dir) / "rlvr-final")
+    final_dir = rlvr_save_dir(checkpoint_dir, save_name)
     bnb = BitsAndBytesConfig(
         load_in_4bit=kw["load_in_4bit"],
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype="bfloat16",
         bnb_4bit_use_double_quant=True,
     )
-    model = AutoModelForMultimodalLM.from_pretrained(
-        "Qwen/Qwen3.8-27B", device_map="auto", dtype="bfloat16",
-        quantization_config=bnb)
+    model, processor = load_base_vl(bnb)
     adapter_path = Path(adapter)
     if adapter_path.exists():
         model = PeftModel.from_pretrained(model, str(adapter_path), is_trainable=True)
@@ -74,10 +73,27 @@ def run_grpo(data: bytes, smoke: bool = False, adapter: str = "/checkpoints/sft-
     model.config.use_cache = False
     if hasattr(model, "enable_input_require_grads"):
         model.enable_input_require_grads()
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen3.8-27B")
     tok = getattr(processor, "tokenizer", processor)
     eos_id = getattr(tok, "eos_token_id", None)
     pad_id = getattr(tok, "pad_token_id", None) or eos_id
+    for obj in (processor, tok):
+        if hasattr(obj, "padding_side"):
+            try:
+                obj.padding_side = "left"
+            except (AttributeError, TypeError):
+                pass
+    # TRL GRPOTrainer reads tokenizer fields on processing_class. Qwen2.5-VL
+    # processors keep those on the nested tokenizer.
+    for attr in (
+        "bos_token", "bos_token_id", "eos_token", "eos_token_id",
+        "pad_token", "pad_token_id", "unk_token", "unk_token_id",
+        "padding_side",
+    ):
+        if not hasattr(processor, attr):
+            try:
+                setattr(processor, attr, getattr(tok, attr, None))
+            except (AttributeError, TypeError):
+                pass
     if hasattr(model, "generation_config"):
         if eos_id is not None:
             model.generation_config.eos_token_id = eos_id
@@ -112,16 +128,18 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--prompts", default="",
                     help="RLVR prompt JSONL (not SFT traces)")
-    ap.add_argument("--adapter", default="/checkpoints/sft-final")
+    ap.add_argument("--adapter", default="/checkpoints/sft-7b")
     ap.add_argument("--iters", type=int, default=200)
     ap.add_argument("--group-size", type=int, default=2)
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--checkpoint-dir", default="/checkpoints")
+    ap.add_argument("--save-name", default="rlvr-final")
     args = ap.parse_args()
     blob = Path(args.prompts).read_bytes() if args.prompts else b""
     print(run_grpo(blob, smoke=args.smoke, adapter=args.adapter,
                    iters=args.iters, group_size=args.group_size,
-                   checkpoint_dir=args.checkpoint_dir))
+                   checkpoint_dir=args.checkpoint_dir,
+                   save_name=args.save_name))
 
 
 if __name__ == "__main__":
