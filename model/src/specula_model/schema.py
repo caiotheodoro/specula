@@ -26,10 +26,20 @@ class VerdictOut(BaseModel):
     violations: list[ViolationOut] = Field(default_factory=list)
 
 
+VIOLATION_TYPE_IDS = (
+    "ALLERGEN", "HEALTH_CLAIM", "CLAIM_THRESHOLD", "SERVING_SIZE",
+    "MISSING_NUTRIENT", "DV_ERROR", "HEALTHY_RULE", "FOP_RULE",
+    "ALLERGEN_STATEMENT", "FORMATTING", "IDENTITY", "NET_QUANTITY",
+    "DV_ROUNDING", "LEGIBILITY",
+)
+SEVERITY_IDS = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
+
 SYSTEM_PROMPT = (
     "You are a FDA food-label compliance reviewer. Given the label image, "
     "emit a JSON object {\"verdict\": \"PASS\"|\"FLAG\", \"violations\": "
     "[{type, severity, cfr, observed, expected, correction}]}. "
+    "type must be one of: " + ", ".join(VIOLATION_TYPE_IDS) + ". "
+    "severity must be one of: " + ", ".join(SEVERITY_IDS) + ". "
     "Verify against 21 CFR 101.9, 101.12, 101.13, 101.54-101.83 and FALCPA. "
     "Emit only the JSON."
 )

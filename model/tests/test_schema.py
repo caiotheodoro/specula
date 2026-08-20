@@ -1,7 +1,14 @@
 """Parser contract for specula_model.schema.parse."""
 
 from specula_forge.schema import Severity, Verdict, Violation, ViolationType
-from specula_model.schema import VerdictOut, parse, to_forge_verdict
+from specula_model.schema import (
+    SEVERITY_IDS,
+    SYSTEM_PROMPT,
+    VIOLATION_TYPE_IDS,
+    VerdictOut,
+    parse,
+    to_forge_verdict,
+)
 
 
 def test_parse_empty_is_none():
@@ -73,3 +80,13 @@ def test_to_forge_verdict_roundtrip():
 
 def test_to_forge_verdict_unparseable_is_none():
     assert to_forge_verdict("garbage") is None
+
+
+def test_system_prompt_lists_contracts_type_and_severity_ids():
+    assert set(VIOLATION_TYPE_IDS) == {t.value for t in ViolationType}
+    assert set(SEVERITY_IDS) == {s.value for s in Severity}
+    for type_id in VIOLATION_TYPE_IDS:
+        assert type_id in SYSTEM_PROMPT
+    for sev in SEVERITY_IDS:
+        assert sev in SYSTEM_PROMPT
+    assert "Emit only the JSON" in SYSTEM_PROMPT
