@@ -232,3 +232,57 @@ CONTRACTS.md; revise only with measured evidence.
   after omitting gpt-5 temperature.
 - Alternatives rejected: mapping `high`→HIGH / prose types→ALLERGEN;
   running DeepSeek on OCR transcripts and calling it a label-vision score.
+
+
+## 2026-08-19 — P6 — Bluesminds catalog is rate-limited, not a Qwen 2.4T stand-in
+- Decision: treat Bluesminds as a probe, not a n=1000 headline. Persist
+  only successful completions so HTTP 429/503 are retried instead of
+  counted as parse misses. Do not substitute Qwen3.5-397B (HTTP 410 EOL)
+  for the missing Qwen3.8-2.4T row.
+- Rationale: 137 listed models; vision-live subset is Llama 3.2 11B VL,
+  Nemotron Nano 12B VL, Omni 30B, GPT-5.2 Chat. Parsed slices all have
+  oracle recall 0 (non-taxonomy types or always-PASS). Concurrent eval
+  hit worker limit 16/16 and then 429.
+- Evidence: 1x1 PNG probes; parsed jsonl n=16/5/10; skip logs HTTP 429
+  and 503 ResourceExhausted.
+- Alternatives rejected: publishing the contaminated n=50 parse rates
+  (~0.10–0.16) as model quality; OCR-then-text on DeepSeek via this
+  gateway.
+
+## 2026-08-19 — P6 — Bluesminds second sweep (GPT-4o, GPT-5-mini, Nano VL 8B)
+- Decision: keep Bluesminds rows as small parsed slices. GPT-4o is the
+  strongest FLAG-rate peer to Luna on this gateway (verdict acc 0.70 on
+  n=20) but still recall 0. Do not treat Llama 3.2 90B VL or Gemma 4 31B
+  as scored (HTTP 504). Do not treat Nano VL 8B's always-PASS as a catch.
+- Rationale: color probe (8x8 red PNG) confirms Llama 3.2 11B and Nano VL
+  8B see pixels. GPT-4o answered a 1x1 PNG then hit 429; later n=20 eval
+  parsed. Catalog still has no Qwen3.8-2.4T.
+- Evidence: `eval-bm-gpt-4o.jsonl` n=20 recall 0.000 verdict_acc 0.70;
+  `eval-bm-gpt-5-mini.jsonl` n=13 parse 0.846 recall 0.000 verdict_acc
+  0.69; `eval-bm-nvidia_llama-3_1-nemotron-nano-vl-8b-v1.jsonl` n=24 all
+  PASS, verdict_acc 0.29.
+- Alternatives rejected: waiting out 504s on 90B VL as a 2.4T proxy;
+  aliasing GPT-4o prose types onto CONTRACTS ids.
+
+## 2026-08-19 — min loop — continue VL SFT into sft-schema, GRPO probe separate
+- Decision: continue LoRA from `/checkpoints/sft-final` with SYSTEM_PROMPT
+  that lists CONTRACTS type/severity ids; save `/checkpoints/sft-schema`.
+  Short GRPO from that adapter to `/checkpoints/rlvr-probe` (max_completion
+  512). Do not overwrite sft-final or continue from collapsed rlvr-final.
+  GCP marathon waits on GPUS_ALL_REGIONS>0.
+- Rationale: SFT gold already used taxonomy ids; eval missed them because
+  the prompt did not name the enums and completions were 128 tokens. Warm
+  LoRA is cheaper than training from base.
+- Evidence: `make validate` 46 forge + 50 model; Modal run
+  ap-UzB9GUxshVsWafF3CU4umD exit 0, 153/153, train_runtime 2879s, train_loss 0.086, saved `/checkpoints/sft-schema`.
+- Alternatives rejected: resuming rlvr-final; text-only train.jsonl without
+  PNG shards; launching gcp_spot.sh while GPUS_ALL_REGIONS=0.
+
+## 2026-08-19 — 10h loop on Qwen2.5-VL-7B, 27B adapters frozen
+- Decision: run schema SFT + GRPO on `Qwen/Qwen2.5-VL-7B-Instruct` to
+  `/checkpoints/sft-7b` and `/checkpoints/rlvr-7b`. Refuse overwrites of
+  sft-final / sft-schema / rlvr-final / rlvr-probe.
+- Rationale: 27B GRPO is ~70s/step; 10 GPU-hr is only ~500 steps. 7B fits
+  a real GRPO run. Same forge gold and CONTRACTS prompt.
+- Evidence: `make validate` 46 forge + 54 model.
+- Alternatives rejected: another 27B GRPO marathon; Qwen3-VL-4B (weaker OCR).

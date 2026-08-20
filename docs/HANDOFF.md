@@ -59,23 +59,25 @@ docs/     DECISIONS.md (decision log), BENCHMARK.md (report template),
   rlvr-bench ap-NzsgAhks5GebScnminKlZT. GPT-5.6 Luna n=1000: parse 0.989,
   recall 0.000, verdict acc 0.726 (almost always FLAG, non-taxonomy types).
   DeepSeek v4-flash hosted API is text-only (HTTP 400 on image_url).
-  `make serve` is the local OpenAI-compat path. GPT-5.x omits temperature
-  (only default 1 is accepted).
-- **Verified green**: `make validate` (46 forge + 42 model). Seed-7 pilot
+  Bluesminds (`https://api.bluesminds.com/v1`) has no Qwen 2.4T / 27B;
+  live VL slices (GPT-4o n=20, GPT-5-mini n=13, Nano VL 8B n=24, Llama
+  3.2 11B, GPT-5.2 Chat) all score oracle recall 0.000. Gateway is
+  429/504-limited. `make serve` is the local OpenAI-compat path. GPT-5.x
+  omits temperature (only default 1 is accepted).
+- **Verified green**: `make validate` (46 forge + 45 model). Seed-7 pilot
   400 (295 FLAG) → train 204 / val 196 overlap 0; seed-777 benchmark 1000
   (734 FLAG); leakprobe clean vs train (0 false-fire, 10/10 on planted leaks).
 
 ## Next actions
 
-1. **Do not ship this adapter as a reviewer.** RLVR collapsed to PASS;
-   SFT does not emit CONTRACTS type/severity ids. Next training loop:
-   constrained decoding or schema-locked SFT, then GRPO with dynamic
-   sampling of zero-std groups (still unbuilt).
-2. **GCP**: request `GPUS_ALL_REGIONS` > 0 if a longer GRPO/self-play
-   marathon should leave Modal.
-3. Schema-lock outputs to CONTRACTS type/severity ids — Luna and SFT both
-   FLAG in prose and score recall 0. Qwen 2.4T and base 27B still unrun.
-   Do not mix RLVR traces into SFT.
+1. **Do not ship rlvr-final.** Schema-lock SFT is in flight on Modal
+   (`sft-final` → `/checkpoints/sft-schema`, 3 epochs, SYSTEM_PROMPT lists
+   CONTRACTS ids). Then GRPO probe → `rlvr-probe` (40 steps, 512-token
+   completions). Gate: recall > 0 and frac_zero_std not stuck at 1.
+2. **GCP marathon is blocked:** `GPUS_ALL_REGIONS=0` (regional L4=1 is not
+   enough). `gcp_spot.sh` now defaults to `sft-schema` / `rlvr-marathon`.
+   Request the quota, then `SMOKE=0 ITERS=1000 GROUP_SIZE=4 ./cloud/gcp_spot.sh`.
+3. Do not continue from collapsed `rlvr-final`. Do not mix RLVR traces into SFT.
 
 ## Bootstrap (fresh agent)
 

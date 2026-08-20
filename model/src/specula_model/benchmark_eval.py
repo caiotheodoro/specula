@@ -107,8 +107,9 @@ def run_benchmark(tasks_jsonl: Path, model: str, concurrency: int,
             t = futs[fut]
             try:
                 p = parse(fut.result() or "")
-            except Exception:
-                p = None
+            except Exception as exc:
+                print(f"skip {t.task_id}: {exc}")
+                continue
             exp = VerdictOut(verdict=t.expected.verdict, violations=[
                 {"type": v.type.value, "severity": v.severity.value,
                  "cfr": v.cfr, "observed": v.observed, "expected": v.expected,

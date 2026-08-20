@@ -175,3 +175,4 @@ def test_run_benchmark_keeps_earlier_rows_if_later_call_fails(tmp_path: Path, mo
         pass
     ids = [json.loads(l)["task_id"] for l in out.read_text().splitlines() if l.strip()]
     assert t1.task_id in ids
+    assert t2.task_id not in ids
